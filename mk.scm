@@ -135,8 +135,6 @@
 
 (define empty-s '())
 
-(define empty-a empty-s)
-
 (define walk
   (lambda (v s)
     (cond
