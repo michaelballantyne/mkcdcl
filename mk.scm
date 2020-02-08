@@ -35,9 +35,10 @@
 
 ;; State: (Counter, Substitution, AssertionHistory)
 ;; AssertionHistory: (AssumptionVariableId, SMT_Statements)
-;; Substitution: Map from Variable to (Term,ProvenanceSet)
+;; Substitution: AList from Variable to (Term,ProvenanceSet)
 ;; ProvenanceSet: List of AssumptionVariableId
-(define empty-state '(0 () ()))
+(define empty-assertion-history '())
+(define empty-state `(0 ,empty-s ,empty-assertion-history))
 
 ;; a set of asserted assumption variable ids
 (define empty-seen-assumptions '())
