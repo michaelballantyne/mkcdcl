@@ -136,19 +136,24 @@
 
 (define empty-s '())
 
+(define provenance-union append)
+(define empty-provenance '())
+
+;; walk: Term, Substitution -> Term, ProvenanceSet
 (define walk
   (lambda (v s)
     (cond
       ((var? v)
        (let ((a (assq v s)))
          (cond
-           (a (walk (rhs a) s))
-           (else v))))
-      (else v))))
+           (a (let-values (((t prov) (walk (car (rhs a)) s)))
+                (values t (provenance-union (cdr (rhs a)) prov))))
+           (else (values v empty-provenance)))))
+      (else (values v empty-provenance)))))
 
 (define ext-s
-  (lambda (x v s)
-    (cons `(,x . ,v) s)))
+  (lambda (x v s prov)
+    (cons `(,x . (,v . ,prov)) s)))
 
 (define unify-check
   (lambda (u v s)
@@ -167,14 +172,14 @@
         (else #f)))))
  
 (define ext-s-check
-  (lambda (x v s)
+  (lambda (x v s prov)
     (cond
       ((occurs-check x v s) #f)
-      (else (ext-s x v s)))))
+      (else (ext-s x v s prov)))))
 
 (define occurs-check
   (lambda (x v s)
-    (let ((v (walk v s)))
+    (let-values (((v _) (walk v s)))
       (cond
         ((var? v) (eq? v x))
         ((pair? v) 
@@ -185,7 +190,7 @@
 
 (define walk*
   (lambda (w s)
-    (let ((v (walk w s)))
+    (let-values (((v _) (walk w s)))
       (cond
         ((var? v) v)
         ((pair? v)
