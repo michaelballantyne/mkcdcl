@@ -111,21 +111,6 @@
   (set! seen-assumptions empty-seen-assumptions)
   (set! child-assumptions empty-child-assumptions)
   (smt-call '((reset)))
-  (smt-call '((declare-datatypes
-               ((SExp 0))
-               (((sbool   (s-bool Bool))
-                 (sint    (s-int Int))
-                 (sreal   (s-real Real))
-                 (ssymbol (s-symbol String))
-                 (sclosure (s-clo-id SExp) (s-clo-body SExp) (s-clo-env SExp))
-                 (sprim (sprim-id SExp))
-                 (snil)
-                 (scons   (s-car SExp) (s-cdr SExp)))))))
-    #;
-    (smt-call '((define-fun-rec closure-absent ((e SExp)) Bool ;
-    (ite ((_ is sclosure) e) false      ;
-    (ite ((_ is scons) e) (and (closure-absent (s-car e)) (closure-absent (s-cdr e))) ;
-    true)))))
   )
 
 (define (reify q)
@@ -192,22 +177,6 @@
                        (cdr p)
                        (error 'sinv (format #f "unknown symbol: ~a" x)))))
     (else (error 'sinv (format #f "not supported: ~a" x)))))
-
-(define (symbolo x)
-  (smt/assert `((_ is ssymbol) ,(s x))))
-
-(define (numbero x)
-  (smt/assert `(or ((_ is sint) ,(s x)) ((_ is sreal) ,(s x)))))
-
-#;
-(define (closure-absento x)
-  (smt/assert `(closure-absent ,(s x))))
-
-(define (not-closureo x)
-  (smt/assert `(not ((_ is sclosure) ,(s x)))))
-
-(define (not-primo x)
-  (smt/assert `(not ((_ is sprim) ,(s x)))))
 
 (define (=/= x y)
   (smt/assert `(not (= ,(s x) ,(s y)))))
@@ -424,24 +393,6 @@
                        (((conj* (smt/declare q) ig ... smt/purge) ctx)
 
                         empty-state))))))))))
-#;
-(define-syntax run
-  (syntax-rules ()
-    ((_ n (q) g0 g ...)
-     (begin
-       (smt/reset!)
-       (take n
-             (inc
-              ((fresh (q) g0 g ... smt/purge
-                      (lambdag@ (st)
-                        (let ((z ((reify q) st)))
-                          (choice z (lambda () (lambda () #f))))))
-               empty-state)))))
-    ((_ n (q0 q1 q ...) g0 g ...)
-     (run n (x)
-       (fresh (q0 q1 q ...)
-         g0 g ...
-         (== `(,q0 ,q1 ,q ...) x))))))
 
 (define-syntax run*
   (syntax-rules ()
