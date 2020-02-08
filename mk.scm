@@ -126,14 +126,6 @@
   (lambda (s)
     (length s)))
 
-(define var
-  (lambda (name)
-    (vector name)))
-
-(define var?
-  (lambda (x)
-    (vector? x)))
-
 (define s-of
   (lambda (a) a))
 
