@@ -33,8 +33,11 @@
     xs)
   (flush-output-port smt-out))
 
-(define empty-state '(0 . ()))
-;; a list of pairs of assumption variable id and z3 statements
+;; State: (Counter, Substitution, AssertionHistory)
+;; AssertionHistory: (AssumptionVariableId, SMT_Statements)
+;; Substitution: Map from Variable to (Term,ProvenanceSet)
+;; ProvenanceSet: List of AssumptionVariableId
+(define empty-state '(0 () ()))
 
 ;; a set of asserted assumption variable ids
 (define empty-seen-assumptions '())
@@ -72,6 +75,7 @@
       (smt-call (list stmt)))
   (cons (car st) (cons (cons ctx stmt) (cdr st))))
 
+;; Counter: Integer (used to decide whether to actually call the solver)
 (define (inc-counter st)
   (cons (+ 1 (car st)) (cdr st)))
 (define get-counter car)
