@@ -176,17 +176,21 @@
   (lambda (u v s new-prov)
     (let-values (((u u-prov) (walk u s))
                  ((v v-prov) (walk v s)))
-      (cond
-        ((eq? u v) s)
-        ((var? u) (ext-s-check u v s (provenance-union new-prov u-prov v-prov)))
-        ((var? v) (ext-s-check v u s new-prov))
-        ((and (pair? u) (pair? v))
-         (let ((s (unify-check 
-                    (car u) (car v) s)))
-           (and s (unify-check 
-                    (cdr u) (cdr v) s))))
-        ((equal? u v) s)
-        (else #f)))))
+      (let ((p (provenance-union new-prov u-prov v-prov))) ;; TODO
+        (cond
+          ((eq? u v) s)
+          ((var? u) (ext-s-check u v s p))
+          ((var? v) (ext-s-check v u s p))
+          ((and (pair? u) (pair? v))
+           (let-values (((success? s)
+                         (unify-check 
+                          (car u) (car v) s p)))
+             (if success?
+                 (unify-check 
+                  (cdr u) (cdr v) s p)
+                 s)))
+          ((equal? u v) s)
+          (else (values #f new-prov)))))))
  
 (define ext-s-check
   (lambda (x v s prov)
