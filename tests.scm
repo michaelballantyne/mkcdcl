@@ -1,5 +1,5 @@
 (load "helper.scm")
-(load "mk-on-smt.scm")
+(load "mk.scm")
 (load "test-check.scm")
 
 (test "nil-1"
