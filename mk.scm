@@ -113,13 +113,125 @@
   (smt-call '((reset)))
   )
 
-(define (reify q)
-  (lambda (st)
-    (smt/check st)
-    (smt-call '((get-model)))
-    (let ((ms (cdr (read smt-in))))
-      (let ((r (car (filter (lambda (x) (eq? (cadr x) (var-name q))) ms))))
-        (sinv (cadddr (cdr r)) '())))))
+
+(define rhs
+  (lambda (pair)
+    (cdr pair)))
+
+(define lhs
+  (lambda (pair)
+    (car pair)))
+
+(define size-s
+  (lambda (s)
+    (length s)))
+
+(define var
+  (lambda (name)
+    (vector name)))
+
+(define var?
+  (lambda (x)
+    (vector? x)))
+
+(define s-of
+  (lambda (a) a))
+
+(define empty-s '())
+
+(define empty-a empty-s)
+
+(define walk
+  (lambda (v s)
+    (cond
+      ((var? v)
+       (let ((a (assq v s)))
+         (cond
+           (a (walk (rhs a) s))
+           (else v))))
+      (else v))))
+
+(define ext-s
+  (lambda (x v s)
+    (cons `(,x . ,v) s)))
+
+(define unify
+  (lambda (u v s)
+    (let ((u (walk u s))
+          (v (walk v s)))
+      (cond
+        ((eq? u v) s)
+        ((var? u) (ext-s u v s))
+        ((var? v) (ext-s v u s))
+        ((and (pair? u) (pair? v))
+         (let ((s (unify (car u) (car v) s)))
+           (and s (unify (cdr u) (cdr v) s))))
+        ((equal? u v) s)
+        (else #f)))))
+ 
+(define unify-check
+  (lambda (u v s)
+    (let ((u (walk u s))
+          (v (walk v s)))
+      (cond
+        ((eq? u v) s)
+        ((var? u) (ext-s-check u v s))
+        ((var? v) (ext-s-check v u s))
+        ((and (pair? u) (pair? v))
+         (let ((s (unify-check 
+                    (car u) (car v) s)))
+           (and s (unify-check 
+                    (cdr u) (cdr v) s))))
+        ((equal? u v) s)
+        (else #f)))))
+ 
+(define ext-s-check
+  (lambda (x v s)
+    (cond
+      ((occurs-check x v s) #f)
+      (else (ext-s x v s)))))
+
+(define occurs-check
+  (lambda (x v s)
+    (let ((v (walk v s)))
+      (cond
+        ((var? v) (eq? v x))
+        ((pair? v) 
+         (or 
+           (occurs-check x (car v) s)
+           (occurs-check x (cdr v) s)))
+        (else #f)))))
+
+(define walk*
+  (lambda (w s)
+    (let ((v (walk w s)))
+      (cond
+        ((var? v) v)
+        ((pair? v)
+         (cons
+           (walk* (car v) s)
+           (walk* (cdr v) s)))
+        (else v)))))
+
+(define reify-s
+  (lambda (v s)
+    (let ((v (walk v s)))
+      (cond
+        ((var? v)
+         (ext-s v (reify-name (size-s s)) s))
+        ((pair? v) (reify-s (cdr v)
+                     (reify-s (car v) s)))
+        (else s)))))
+
+(define reify-name
+  (lambda (n)
+    (string->symbol
+      (string-append "_" "." (number->string n)))))
+
+(define reify
+  (lambda (v s)
+    (let ((v (walk* v s)))
+      (walk* v (reify-s v empty-s)))))
 
 (define (var x id)
   (vector
@@ -131,52 +243,8 @@
 (define (var-name v)
   (vector-ref v 0))
 
-(define (s x)
-  (cond
-    ((eq? x #f) '(sbool false))
-    ((eq? x #t) '(sbool true))
-    ((number? x)
-     (if (exact? x)
-         `(sint ,x)
-         `(sreal ,x)))
-    ((null? x) 'snil)
-    ((symbol? x) `(ssymbol ,(symbol->string x)))
-    ((pair? x) `(scons ,(s (car x)) ,(s (cdr x))))
-    ((closure? x) `(sclosure ,(s (closure-id x)) ,(s (closure-body x)) ,(s (closure-env x))))
-    ((prim? x) `(sprim ,(s (prim-id x))))
-    ((var? x) (var-name x))
-    (else (error 's (format #f "not supported: ~a" x)))))
-
 (define (tagged-list? tag x)
   (and (pair? x) (eq? (car x) tag)))
-
-(define (simplify-real x)
-  (cond ((number? x) x)
-        ((tagged-list? '/ x) (/ (cadr x) (caddr x)))
-        (else (error 'simplify-real (format #f "unexpected real: ~a" x)))))
-
-(define (sinv x env)
-  (cond
-    ((equal? x '(sbool false)) #f)
-    ((equal? x '(sbool true)) #t)
-    ((tagged-list? 'sint x) (cadr x))
-    ((tagged-list? 'sreal x) (simplify-real (cadr x)))
-    ((equal? x 'snil) '())
-    ((tagged-list? 'ssymbol x) (string->symbol (cadr x)))
-    ((tagged-list? 'scons x) `(,(sinv (cadr x) env) . ,(sinv (caddr x) env)))
-    ((tagged-list? 'sclosure x) (make-closure (sinv (cadr x) env) (sinv (caddr x) env) (sinv (cadddr x) env)))
-    ((tagged-list? 'sprim x) (make-prim (sinv (cadr x) env)))
-    ((tagged-list? 'let x)
-     (let* ((bindings (cadr x))
-            (lhss (map car bindings))
-            (rhss (map (lambda (x) (sinv (cadr x) env)) bindings))
-            (body (caddr x)))
-       (sinv body (append (map cons lhss rhss) env))))
-    ((symbol? x) (let ((p (assq x env)))
-                   (if p
-                       (cdr p)
-                       (error 'sinv (format #f "unknown symbol: ~a" x)))))
-    (else (error 'sinv (format #f "not supported: ~a" x)))))
 
 (define (=/= x y)
   (smt/assert `(not (= ,(s x) ,(s y)))))
