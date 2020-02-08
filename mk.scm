@@ -33,7 +33,7 @@
     xs)
   (flush-output-port smt-out))
 
-(define empty-state '(0))
+(define empty-state '(0 . ()))
 ;; a list of pairs of assumption variable id and z3 statements
 
 ;; a set of asserted assumption variable ids
