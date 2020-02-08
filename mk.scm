@@ -136,6 +136,7 @@
 
 (define empty-s '())
 
+;;(define (provenance-union . args) (apply append args))
 (define provenance-union append)
 (define empty-provenance '())
 
@@ -155,14 +156,30 @@
   (lambda (x v s prov)
     (cons `(,x . (,v . ,prov)) s)))
 
+;; Example 1
+;;
+;; 1. (== x y)
+;; 2. (== x z)
+;;
+;;  ((x y (1))
+;;   (y z (2 1)))  This needs 1 as well so that we include constraint 1 in the provenance set for the failure later at 4
+;;
+;; 3. (== z 1)
+;;
+;;  (z 1 2)
+;;
+;; 4. (== y 2)
+;; Final blame: (1 2 3 4)
+
+;; Term,Term,Substitution,Provenance -> (#t, Substitution) or (#f, Provenance)
 (define unify-check
-  (lambda (u v s)
-    (let ((u (walk u s))
-          (v (walk v s)))
+  (lambda (u v s new-prov)
+    (let-values (((u u-prov) (walk u s))
+                 ((v v-prov) (walk v s)))
       (cond
         ((eq? u v) s)
-        ((var? u) (ext-s-check u v s))
-        ((var? v) (ext-s-check v u s))
+        ((var? u) (ext-s-check u v s (provenance-union new-prov u-prov v-prov)))
+        ((var? v) (ext-s-check v u s new-prov))
         ((and (pair? u) (pair? v))
          (let ((s (unify-check 
                     (car u) (car v) s)))
