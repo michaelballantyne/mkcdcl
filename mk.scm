@@ -234,7 +234,7 @@
 
 (define reify-s
   (lambda (v s)
-    (let ((v (walk v s)))
+    (let-values (((v _) (walk v s)))
       (cond
         ((var? v)
          (ext-s v (reify-name (size-s s)) s))
