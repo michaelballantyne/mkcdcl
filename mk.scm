@@ -248,9 +248,11 @@
       (string-append "_" "." (number->string n)))))
 
 (define reify
-  (lambda (v s)
-    (let ((v (walk* v s)))
-      (walk* v (reify-s v empty-s)))))
+  (lambda (v)
+    (lambda (st)
+      (let ((s (state-s st)))
+        (let ((v (walk* v s)))
+          (walk* v (reify-s v empty-s)))))))
 
 (define (var x id)
   (vector
