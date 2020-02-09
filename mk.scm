@@ -15,7 +15,7 @@
 
 (define (smt-read-sat)
   (let ([r (read smt-in)])
-    ;;(printf ">> ~a\n" r)
+    ;(printf "read sat>> ~a\n" r)
     (cond
       ((eq? r 'sat)
        #t)
@@ -78,9 +78,6 @@
 (define left car)
 (define right cdr)
 
-(define-structure (closure id body env))
-(define-structure (prim id))
-
 (define (smt/add ctx stmt st)
   (smt-call (list stmt))
   (state-assertion-history-update st (lambda (old) (cons (cons ctx stmt) old))))
@@ -100,6 +97,8 @@
 (define smt/check-sometimes
   (lambda (st)
     (let ((st (inc-counter st)))
+      ;(smt/check st)
+      ;st
       (if (= (remainder (get-counter st) 30) 0)
           (smt/check st)
           st))))
@@ -127,7 +126,8 @@
 
 (define smt/purge
   (lambda (ctx)
-    smt/check))
+    (lambda (st) st)
+    #;smt/check))
 
 (define (smt/reset!)
   (set! assumption-count 0)
@@ -192,8 +192,8 @@
       (let ((p (provenance-union new-prov u-prov v-prov))) ;; TODO
         (cond
           ((eq? u v) (values #t s))
-          ((var? u) (values #t (ext-s-check u v s p)))
-          ((var? v) (values #t (ext-s-check v u s p)))
+          ((var? u) (ext-s-check u v s p))
+          ((var? v) (ext-s-check v u s p))
           ((and (pair? u) (pair? v))
            (let-values (((success? s)
                          (unify-check 
@@ -201,15 +201,15 @@
              (if success?
                  (unify-check 
                   (cdr u) (cdr v) s p)
-                 s)))
-          ((equal? u v) s)
-          (else (values #f new-prov)))))))
- 
+                 (values #f s))))
+          ((equal? u v) (values #t s))
+          (else (values #f p)))))))
+
 (define ext-s-check
   (lambda (x v s prov)
     (cond
-      ((occurs-check x v s) #f)
-      (else (ext-s x v s prov)))))
+      ((occurs-check x v s) (values #f prov))
+      (else (values #t (ext-s x v s prov))))))
 
 (define occurs-check
   (lambda (x v s)
@@ -489,3 +489,6 @@
 (define-syntax run*
   (syntax-rules ()
     ((_ (q0 q ...) g0 g ...) (run #f (q0 q ...) g0 g ...))))
+
+(define fail (lambda (ctx) (lambda (st) #f)))
+(define succeed (lambda (ctx) (lambda (st) st)))
