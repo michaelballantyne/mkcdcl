@@ -70,6 +70,9 @@
 (define-structure (closure id body env))
 (define-structure (prim id))
 
+(define (smt/add ctx stmt st)
+  (smt-call (list stmt))
+  (cons (car st) (cons (cons ctx stmt) (cdr st))))
 (define (smt/add-if-new ctx stmt st)
   (unless (seen-assumption? ctx)
       (saw-assumption! ctx)
@@ -106,6 +109,13 @@
     (lambda (st)
       (smt/check-sometimes
        (smt/add-if-new ctx `(assert (= ,(assumption-id->symbol ctx) ,e)) st)))))
+
+(define (smt/conflict prov)
+  (lambda (ctx)
+    (lambda (st)
+      (smt/add ctx
+               `(assert (not (and . ,prov)))
+               st))))
 
 (define smt/purge
   (lambda (ctx)
@@ -260,7 +270,7 @@
               (unify-check u v a (prov-from-ctx ctx))))
           (if success?
               s
-              (smt/assert `(not (and . ,s)))))))))
+              (smt/conflict s)))))))
 
 ;Search
 
