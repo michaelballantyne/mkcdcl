@@ -38,6 +38,7 @@
 (define state-counter car)
 (define state-s cadr)
 (define state-assertion-history caddr)
+(define (state-s-update st s) (state (state-counter st) s (state-assertion-history st)))
 ;; AssertionHistory: (AssumptionVariableId, SMT_Statements)
 ;; Substitution: AList from Variable to (Term,ProvenanceSet)
 ;; ProvenanceSet: List of AssumptionVariableId
@@ -270,8 +271,8 @@
             (((success? s)
               (unify-check u v (state-s st) (prov-from-ctx ctx))))
           (if success?
-              s
-              (smt/conflict s)))))))
+              (state-s-update st s)
+              (((smt/conflict s) ctx) st)))))))
 
 ;Search
 
