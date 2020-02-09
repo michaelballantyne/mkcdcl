@@ -38,7 +38,10 @@
 (define state-counter car)
 (define state-s cadr)
 (define state-assertion-history caddr)
-(define (state-s-update st s) (state (state-counter st) s (state-assertion-history st)))
+(define (state-s-set st s)
+  (state (state-counter st) s (state-assertion-history st)))
+(define (state-assertion-history-update st f)
+  (state (state-counter st) (state-s st) (f (state-assertion-history st))))
 ;; AssertionHistory: (AssumptionVariableId, SMT_Statements)
 ;; Substitution: AList from Variable to (Term,ProvenanceSet)
 ;; ProvenanceSet: List of AssumptionVariableId
@@ -77,12 +80,11 @@
 
 (define (smt/add ctx stmt st)
   (smt-call (list stmt))
-  (cons (car st) (cons (cons ctx stmt) (cdr st))))
+  (state-assertion-history-update st (lambda (old) (cons (cons ctx stmt) old))))
 (define (smt/add-if-new ctx stmt st)
   (unless (seen-assumption? ctx)
       (saw-assumption! ctx)
-      (smt-call (list stmt)))
-  (cons (car st) (cons (cons ctx stmt) (cdr st))))
+      (smt/add ctx stmt st)))
 
 ;; Counter: Integer (used to decide whether to actually call the solver)
 (define (inc-counter st)
@@ -271,7 +273,7 @@
             (((success? s)
               (unify-check u v (state-s st) (prov-from-ctx ctx))))
           (if success?
-              (state-s-update st s)
+              (state-s-set st s)
               (((smt/conflict s) ctx) st)))))))
 
 ;Search
