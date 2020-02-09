@@ -19,7 +19,7 @@
 
 
 ;;(define smt-cmd "cvc4 --lang=smt2.6 -m --incremental --fmf-fun")
-(define smt-cmd "z3 -in")
+(define smt-cmd "z3 -in -t:20")
 
 (define-values (smt-out smt-in smt-err smt-p)
   (open-process-ports smt-cmd 'block (native-transcoder)))
@@ -36,19 +36,22 @@
     ;(printf "read sat>> ~a\n" r)
     (cond
       ((eq? r 'sat)
+         ;(printf "read-sat: sat\n")
        #t)
       ((eq? r 'unsat)
+         ;(printf "read-sat: unsat\n")
        #f)
       ((eq? r 'unknown)
        (begin
          (printf "read-sat: unknown\n")
-         #f))
+         (printf "assumptions: ~a\n" assumption-count)
+         #t))
       (else (error 'read-sat (format "~a" r))))))
 
 (define (smt-call xs)
   (for-each
     (lambda (x)
-      ;(printf "~s\n" x)
+     ;(printf "~s\n" x)
       (flush-output-port)
       (fprintf smt-out "~s\n" x))
     xs)
@@ -134,6 +137,11 @@
     (lambda (st)
       (smt/check-sometimes
        (smt/add-if-new ctx `(assert (= ,(assumption-id->symbol ctx) ,e)) st)))))
+
+(define (smt/assert-leaf ctx)
+  (lambda (st)
+      (state-assertion-history-update st (lambda (old) (cons (cons ctx '(assert (= 1 1))) old)))
+  ))
 
 (define (smt/conflict prov)
   (lambda (ctx)
@@ -302,7 +310,7 @@
           (((success? s)
             (unify-check u v (state-s st) (prov-from-ctx ctx))))
         (if success?
-            (state-s-set st s)
+            ((smt/assert-leaf ctx) (state-s-set st s))
             (((smt/conflict s) ctx) st))))))
 
 ;Search
