@@ -30,7 +30,7 @@
 (define (smt-call xs)
   (for-each
     (lambda (x)
-      (printf "~s\n" x)
+      ;(printf "~s\n" x)
       (flush-output-port)
       (fprintf smt-out "~s\n" x))
     xs)
@@ -123,7 +123,7 @@
     (lambda (st)
       ;; OK to be ephemeral, only boost
       (smt-call (list `(assert (not (and . ,(map assumption-id->symbol prov))))))
-      st)))
+      #f)))
 
 (define smt/purge
   (lambda (ctx)
@@ -191,7 +191,7 @@
                  ((v v-prov) (walk v s)))
       (let ((p (provenance-union new-prov u-prov v-prov))) ;; TODO
         (cond
-          ((eq? u v) s)
+          ((eq? u v) (values #t s))
           ((var? u) (values #t (ext-s-check u v s p)))
           ((var? v) (values #t (ext-s-check v u s p)))
           ((and (pair? u) (pair? v))

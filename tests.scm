@@ -14,7 +14,7 @@
   (run* (q) (== q (cons 'a 'b)))
   '((a . b)))
 
-(test "closure-1"
+#;(test "closure-1"
   (run* (q) (== q (make-closure 'x 'x '())))
   '(#(closure x x ())))
 
