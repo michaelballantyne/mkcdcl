@@ -31,6 +31,7 @@
   (for-each
     (lambda (x)
       (printf "~s\n" x)
+      (flush-output-port)
       (fprintf smt-out "~s\n" x))
     xs)
   (flush-output-port smt-out))
@@ -121,7 +122,7 @@
   (lambda (ctx)
     (lambda (st)
       ;; OK to be ephemeral, only boost
-      (smt-call `(assert (not (and . ,prov))))
+      (smt-call (list `(assert (not (and . ,(map assumption-id->symbol prov))))))
       st)))
 
 (define smt/purge
