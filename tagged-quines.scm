@@ -154,7 +154,7 @@
     (assert (equal? (scheme-eval q) q))
     q)
   (normalize
-   (run 15 (q)
+   (run 35 (q)
      (ev '()
          q
          `(code ,q)))))))

@@ -1,4 +1,22 @@
-(define empty-s '())
+(define empty-subst-map '())
+
+(define subst-map-length t:size)
+
+; Returns #f if not found, or a pair of u and the result of the lookup.
+; This distinguishes between #f indicating absence and being the result.
+(define subst-map-lookup
+  (lambda (u S)
+    (let ((res (t:lookup (var-idx u) S)))
+      (if res
+        (data-val res)
+        #f))))
+
+(define (subst-map-add S var val)
+  (t:bind (var-idx var) val S))
+
+(define subst-map-eq? eq?)
+
+
 
 ;;(define smt-cmd "cvc4 --lang=smt2.6 -m --incremental --fmf-fun")
 (define smt-cmd "z3 -in")
@@ -49,7 +67,7 @@
 ;; Substitution: AList from Variable to (Term,ProvenanceSet)
 ;; ProvenanceSet: List of AssumptionVariableId
 (define empty-assertion-history '())
-(define empty-state `(0 ,empty-s ,empty-assertion-history))
+(define empty-state `(0 ,empty-subst-map ,empty-assertion-history))
 
 ;; a set of asserted assumption variable ids
 (define empty-seen-assumptions '())
@@ -146,8 +164,7 @@
     (car pair)))
 
 (define size-s
-  (lambda (s)
-    (length s)))
+  subst-map-length)
 
 ;;(define (provenance-union . args) (apply append args))
 (define provenance-union append)
@@ -158,16 +175,17 @@
   (lambda (v s)
     (cond
       ((var? v)
-       (let ((a (assq v s)))
+       (let ((a (subst-map-lookup v s)))
          (cond
-           (a (let-values (((t prov) (walk (car (rhs a)) s)))
-                (values t (provenance-union (cdr (rhs a)) prov))))
+           (a (let-values (((t prov) (walk (car a) s)))
+                (values t (provenance-union (cdr a) prov))))
            (else (values v empty-provenance)))))
       (else (values v empty-provenance)))))
 
 (define ext-s
   (lambda (x v s prov)
-    (cons `(,x . (,v . ,prov)) s)))
+    (subst-map-add s x  `(,v . ,prov))))
+
 
 ;; Example 1
 ;;
@@ -253,17 +271,28 @@
     (lambda (st)
       (let ((s (state-s st)))
         (let ((v (walk* v s)))
-          (walk* v (reify-s v empty-s)))))))
+          (walk* v (reify-s v empty-subst-map)))))))
 
-(define (var x id)
-  (vector
-   (string->symbol (format #f "_v_~a_~a" x id))))
+(define var
+  (let ((counter -1))
+    (lambda (x id)
+      (set! counter (+ 1 counter))
+      (vector
+        (string->symbol (format #f "_v_~a_~a" x id)) counter)
+      )))
+
+;(define (var x id)
+  ;(vector
+   ;(string->symbol (format #f "_v_~a_~a" x id))))
 
 (define (var? x)
   (vector? x))
 
 (define (var-name v)
   (vector-ref v 0))
+
+(define (var-idx v)
+  (vector-ref v 1))
 
 (define (prov-from-ctx ctx) (list ctx))
 (define (== u v)
