@@ -250,12 +250,6 @@
 (define (var-name v)
   (vector-ref v 0))
 
-(define (tagged-list? tag x)
-  (and (pair? x) (eq? (car x) tag)))
-
-(define (=/= x y)
-  (smt/assert `(not (= ,(s x) ,(s y)))))
-
 (define (== x y)
   (smt/assert `(= ,(s x) ,(s y))))
 
