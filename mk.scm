@@ -30,7 +30,7 @@
 (define (smt-call xs)
   (for-each
     (lambda (x)
-      ;;(printf "~s\n" x)
+      (printf "~s\n" x)
       (fprintf smt-out "~s\n" x))
     xs)
   (flush-output-port smt-out))
@@ -106,7 +106,7 @@
 (define smt/check
   (lambda (st)
     (smt-call `((check-sat-assuming
-                 ,(map (lambda (x) (assumption-id->symbol (car x))) (cdr st)))))
+                 ,(map (lambda (x) (assumption-id->symbol (car x))) (state-assertion-history st)))))
     (if (smt-read-sat)
         st
         #f)))
