@@ -250,8 +250,17 @@
 (define (var-name v)
   (vector-ref v 0))
 
+(define (prov-from-ctx ctx) (list ctx))
 (define (== x y)
-  (smt/assert `(= ,(s x) ,(s y))))
+  (lambda (u v)
+    (lambda (ctx)
+      (lambda (a)
+        (let-values
+            (((success? s)
+              (unify-check u v a (prov-from-ctx ctx))))
+          (if success?
+              s
+              (smt/assert `(not (and . ,s)))))))))
 
 ;Search
 
