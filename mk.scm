@@ -237,7 +237,7 @@
     (let-values (((v _) (walk v s)))
       (cond
         ((var? v)
-         (ext-s v (reify-name (size-s s)) s))
+         (ext-s v (reify-name (size-s s)) s '()))
         ((pair? v) (reify-s (cdr v)
                      (reify-s (car v) s)))
         (else s)))))

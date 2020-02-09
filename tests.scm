@@ -26,14 +26,6 @@
   (run* (q) (== q 2.5))
   '(2.5))
 
-(test "conj-1"
-  (run* (q) (conj2 (numbero q) (== q 1)))
-  '(1))
-
-(test "conj-2"
-  (run* (q) (conj2 (numbero q) (== q 'hello)))
-  '())
-
 (test "fresh-1"
   (run* (q) (fresh (x y) (== x q) (== y q) (== x 1)))
   '(1))
