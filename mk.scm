@@ -114,7 +114,7 @@
 (define (smt/declare x)
   (lambda (ctx)
     (lambda (st)
-      (smt/add-if-new ctx `(declare-const ,(var-name x) SExp) st))))
+      (smt/add-if-new ctx `(declare-const ,(var-name x) Bool) st))))
 
 (define (smt/assert e)
   (lambda (ctx)
@@ -196,8 +196,8 @@
       (let ((p (provenance-union new-prov u-prov v-prov))) ;; TODO
         (cond
           ((eq? u v) s)
-          ((var? u) (ext-s-check u v s p))
-          ((var? v) (ext-s-check v u s p))
+          ((var? u) (values #t (ext-s-check u v s p)))
+          ((var? v) (values #t (ext-s-check v u s p)))
           ((and (pair? u) (pair? v))
            (let-values (((success? s)
                          (unify-check 
@@ -268,16 +268,15 @@
   (vector-ref v 0))
 
 (define (prov-from-ctx ctx) (list ctx))
-(define (== x y)
-  (lambda (u v)
-    (lambda (ctx)
-      (lambda (st)
-        (let-values
-            (((success? s)
-              (unify-check u v (state-s st) (prov-from-ctx ctx))))
-          (if success?
-              (state-s-set st s)
-              (((smt/conflict s) ctx) st)))))))
+(define (== u v)
+  (lambda (ctx)
+    (lambda (st)
+      (let-values
+          (((success? s)
+            (unify-check u v (state-s st) (prov-from-ctx ctx))))
+        (if success?
+            (state-s-set st s)
+            (((smt/conflict s) ctx) st))))))
 
 ;Search
 
