@@ -111,11 +111,6 @@
         st
         #f)))
 
-(define (smt/declare x)
-  (lambda (ctx)
-    (lambda (st)
-      (smt/add-if-new ctx `(declare-const ,(var-name x) Bool) st))))
-
 (define (smt/assert e)
   (lambda (ctx)
     (lambda (st)
@@ -417,7 +412,7 @@
          (inc
           ;; this will break with macro-generated freshes
           (let ((x (var 'x ctx)) ...)
-            (((conj* (smt/declare x) ... ig0 ig ...) ctx) st))))))))
+            (((conj* ig0 ig ...) ctx) st))))))))
 #;
 (define-syntax fresh
   (syntax-rules ()
@@ -484,7 +479,7 @@
            (map (reify q)
                 (take n
                       (inc
-                       (((conj* (smt/declare q) ig ... smt/purge) ctx)
+                       (((conj* ig ... smt/purge) ctx)
 
                         empty-state))))))))))
 
