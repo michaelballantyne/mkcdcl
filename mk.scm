@@ -120,9 +120,9 @@
 (define (smt/conflict prov)
   (lambda (ctx)
     (lambda (st)
-      (smt/add ctx
-               `(assert (not (and . ,prov)))
-               st))))
+      ;; OK to be ephemeral, only boost
+      (smt-call `(assert (not (and . ,prov))))
+      st)))
 
 (define smt/purge
   (lambda (ctx)
