@@ -83,8 +83,11 @@
   (state-assertion-history-update st (lambda (old) (cons (cons ctx stmt) old))))
 (define (smt/add-if-new ctx stmt st)
   (unless (seen-assumption? ctx)
-      (saw-assumption! ctx)
-      (smt/add ctx stmt st)))
+    (saw-assumption! ctx)
+    (smt-call (list stmt)))
+  ;; may have seen the assumption along a different search path
+  ;; so updating always
+  (state-assertion-history-update st (lambda (old) (cons (cons ctx stmt) old))))
 
 ;; Counter: Integer (used to decide whether to actually call the solver)
 (define (inc-counter st)
