@@ -1,3 +1,5 @@
+(define empty-s '())
+
 ;;(define smt-cmd "cvc4 --lang=smt2.6 -m --incremental --fmf-fun")
 (define smt-cmd "z3 -in")
 
@@ -150,8 +152,6 @@
 (define size-s
   (lambda (s)
     (length s)))
-
-(define empty-s '())
 
 ;;(define (provenance-union . args) (apply append args))
 (define provenance-union append)
