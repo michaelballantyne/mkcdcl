@@ -34,6 +34,10 @@
   (flush-output-port smt-out))
 
 ;; State: (Counter, Substitution, AssertionHistory)
+(define (state c s ah) (list c s ah))
+(define state-counter car)
+(define state-s cadr)
+(define state-assertion-history caddr)
 ;; AssertionHistory: (AssumptionVariableId, SMT_Statements)
 ;; Substitution: AList from Variable to (Term,ProvenanceSet)
 ;; ProvenanceSet: List of AssumptionVariableId
@@ -140,9 +144,6 @@
 (define size-s
   (lambda (s)
     (length s)))
-
-(define s-of
-  (lambda (a) a))
 
 (define empty-s '())
 
@@ -264,10 +265,10 @@
 (define (== x y)
   (lambda (u v)
     (lambda (ctx)
-      (lambda (a)
+      (lambda (st)
         (let-values
             (((success? s)
-              (unify-check u v a (prov-from-ctx ctx))))
+              (unify-check u v (state-s st) (prov-from-ctx ctx))))
           (if success?
               s
               (smt/conflict s)))))))
