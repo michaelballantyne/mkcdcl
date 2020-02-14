@@ -282,20 +282,17 @@
 
 (define var
   (let ((counter -1))
-    (lambda (x id)
+    (lambda ()
       (set! counter (+ 1 counter))
       (vector
-        (string->symbol (format "_v_~a_~a" x id)) counter)
+        counter)
       )))
 
 (define (var? x)
   (vector? x))
 
-(define (var-name v)
-  (vector-ref v 0))
-
 (define (var-idx v)
-  (vector-ref v 1))
+  (vector-ref v 0))
 
 (define (prov-from-ctx ctx) (list ctx))
 (define (== u v)
@@ -446,17 +443,8 @@
        (lambdag@ (st)
          (inc
           ;; this will break with macro-generated freshes
-          (let ((x (var 'x ctx)) ...)
+          (let ((x (var)) ...)
             (((conj* ig0 ig ...) ctx) st))))))))
-#;
-(define-syntax fresh
-  (syntax-rules ()
-    ((_ (x ...) g0 g ...)
-     (lambdag@ (st)
-       (inc
-         (let ((x (var)) ...)
-           (bind* st (smt/declare x) ... g0 g ...)))))))
-
 
 ; -> Goal
 (define (disj2 ig1 ig2)
@@ -510,7 +498,7 @@
      (begin
        (smt/reset!)
        (let ((ctx (fresh-assumption-id!)))
-         (let ((q (var 'q ctx)))
+         (let ((q (var)))
            (map (reify q)
                 (take n
                       (inc
