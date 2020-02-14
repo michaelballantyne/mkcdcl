@@ -75,25 +75,28 @@
 (define empty-seen-assumptions empty-intmap)
 (define seen-assumptions empty-seen-assumptions)
 (define (saw-assumption! id)
-  (set! seen-assumptions (intmap-set seen-assumptions id #t)))
+  (set! seen-assumptions (intmap-set seen-assumptions (assumption-id-int id) #t)))
 (define (seen-assumption? id)
-  (intmap-ref seen-assumptions id))
+  (intmap-ref seen-assumptions (assumption-id-int id)))
 (define (assumption-id->symbol id)
   (string->symbol (format "_a~a" id)))
 (define assumption-count 0)
 (define (fresh-assumption-id!)
   (set! assumption-count (+ 1 assumption-count))
-  (smt-call `((declare-const ,(assumption-id->symbol assumption-count) Bool)))
-  assumption-count)
+  (let ([id (assumption-id->symbol assumption-count)])
+    (smt-call `((declare-const ,id Bool)))
+    (cons assumption-count id)))
+(define assumption-id-sym cdr)
+(define assumption-id-int car)
 (define empty-child-assumptions empty-intmap)
 (define child-assumptions empty-child-assumptions)
 (define (get-child-assumptions! id)
-  (let ((r (intmap-ref child-assumptions id)))
-    (or r
-        (begin
-          (let ((new-cs (cons (fresh-assumption-id!) (fresh-assumption-id!))))
-            (set! child-assumptions (intmap-set child-assumptions id new-cs))
-            new-cs)))))
+  (let ((r (intmap-ref child-assumptions (assumption-id-int id))))
+    (if r
+        (values (car r) (cdr r))
+        (let ([l (fresh-assumption-id!)] [r (fresh-assumption-id!)])
+          (set! child-assumptions (intmap-set child-assumptions (assumption-id-int id) (cons l r)))
+          (values l r)))))
 (define left car)
 (define right cdr)
 
@@ -118,7 +121,7 @@
     (let ((st (inc-counter st)))
       ;(smt/check st)
       ;st
-      (if (= (remainder (get-counter st) 500) 0)
+      (if (= (remainder (get-counter st) 200) 0)
           (smt/check st)
           st))))
 
@@ -126,28 +129,22 @@
   (lambda (st)
     (smt-call/flush
       `((check-sat-assuming
-          ,(map (lambda (x) (assumption-id->symbol (car x))) (state-assertion-history st)))))
+          ,(map (lambda (x) (assumption-id-sym (car x))) (state-assertion-history st)))))
     (if (smt-read-sat)
         st
         #f)))
 
-(define (smt/assert e)
-  (lambda (ctx)
-    (lambda (st)
-      (smt/check-sometimes
-       (smt/add-if-new ctx `(assert (= ,(assumption-id->symbol ctx) ,e)) st)))))
+(define (smt/assert e ctx st)
+  (smt/check-sometimes
+    (smt/add-if-new ctx `(assert (= ,(assumption-id-sym ctx) ,e)) st)))
 
-(define (smt/assert-leaf ctx)
-  (lambda (st)
-      (state-assertion-history-update st (lambda (old) (cons (cons ctx '(assert (= 1 1))) old)))
-  ))
+(define (smt/assert-leaf ctx st)
+  (state-assertion-history-update st (lambda (old) (cons (cons ctx '(assert (= 1 1))) old))))
 
-(define (smt/conflict prov)
-  (lambda (ctx)
-    (lambda (st)
-      ;; OK to be ephemeral, only boost
-      (smt-call (list `(assert (not (and . ,(map assumption-id->symbol prov))))))
-      #f)))
+(define (smt/conflict prov ctx st)
+  ;; OK to be ephemeral, only boost
+  (smt-call (list `(assert (not (and . ,(map assumption-id-sym prov))))))
+  #f)
 
 (define smt/purge
   (lambda (ctx)
@@ -302,8 +299,8 @@
           (((success? s)
             (unify-check u v (state-s st) (prov-from-ctx ctx))))
         (if success?
-            ((smt/assert-leaf ctx) (state-s-set st s))
-            (((smt/conflict s) ctx) st))))))
+            (smt/assert-leaf ctx (state-s-set st s))
+            (smt/conflict s ctx st))))))
 
 ;Search
 
@@ -401,35 +398,23 @@
          ((c f) (cons c
                   (take (and n (- n 1)) f))))))))
 
-; -> SearchStream
-(define-syntax bind*
-  (syntax-rules ()
-    ((_ e) e)
-    ((_ e g0 g ...) (bind* (bind e g0) g ...))))
+(define (assert-and ctx1 ctx2 ctx st)
+  (smt/assert `(and ,(assumption-id-sym ctx1)
+                    ,(assumption-id-sym ctx2))
+              ctx st))
 
-; -> SearchStream
-(define-syntax mplus*
-  (syntax-rules ()
-    ((_ e) e)
-    ((_ e0 e ...) (mplus e0
-                    (inc (mplus* e ...))))))
+(define (assert-or ctx1 ctx2 ctx st)
+  (smt/assert `(or ,(assumption-id-sym ctx1)
+                   ,(assumption-id-sym ctx2))
+              ctx st))
 
 ; -> Goal
 (define (conj2 ig1 ig2)
-  (lambda (ctx)
-    (let ((cs (get-child-assumptions! ctx)))
-      (let ((ctx1 (left cs))
-            (ctx2 (right cs)))
-        (let ((g1 (ig1 ctx1))
-              (g2 (ig2 ctx2)))
-          (lambdag@ (st)
-            (bind*
-             st
-             ((smt/assert `(and ,(assumption-id->symbol ctx1)
-                                ,(assumption-id->symbol ctx2)))
-              ctx)
-             g1
-             g2)))))))
+     (lambda (ctx)
+       (let-values (((ctx1 ctx2) (get-child-assumptions! ctx)))
+         (lambdag@ (st)
+                   (let ([st (assert-and ctx1 ctx2 ctx st)])
+                     (bind ((ig1 ctx1) st) (ig2 ctx2)))))))
 
 (define-syntax conj*
   (syntax-rules ()
@@ -441,34 +426,23 @@
     ((_ (x ...) ig0 ig ...)
      (lambda (ctx)
        (lambdag@ (st)
-         (inc
-          ;; this will break with macro-generated freshes
-          (let ((x (var)) ...)
-            (((conj* ig0 ig ...) ctx) st))))))))
+                 (inc
+                   ;; this will break with macro-generated freshes
+                   (let ((x (var)) ...)
+                     (((conj* ig0 ig ...) ctx) st))))))))
 
 ; -> Goal
 (define (disj2 ig1 ig2)
-  (lambda (ctx)
-    (let ((cs (get-child-assumptions! ctx)))
-      (let ((ctx1 (left cs))
-            (ctx2 (right cs)))
-        (let ((g1 (ig1 ctx1))
-              (g2 (ig2 ctx2)))
-          (lambdag@ (st)
-            (bind*
-             (((smt/assert `(or ,(assumption-id->symbol ctx1)
-                                ,(assumption-id->symbol ctx2)))
-               ctx)
-              st)
-             (lambdag@ (st)
-               (mplus*
-                (g1 st)
-                (g2 st))))))))))
+     (lambda (ctx)
+       (let-values (((ctx1 ctx2) (get-child-assumptions! ctx)))
+         (lambdag@ (st)
+                   (let ([st (assert-or ctx1 ctx2 ctx st)])
+                     (mplus ((ig1 ctx1) st) (inc (((ig2) ctx2) st))))))))
 
 (define-syntax disj*
   (syntax-rules ()
     ((_ ig) ig)
-    ((_ ig0 ig ...) (disj2 ig0 (disj* ig ...)))))
+    ((_ ig0 ig ...) (disj2 ig0 (lambda () (disj* ig ...))))))
 
 (define-syntax conde
   (syntax-rules ()
