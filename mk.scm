@@ -34,14 +34,27 @@
          #t))
       (else (error 'read-sat (format "~a" r))))))
 
+(define buffer '())
 (define (smt-call xs)
-  (for-each
-    (lambda (x)
-     ;(printf "~s\n" x)
-      (flush-output-port)
-      (fprintf smt-out "~s\n" x))
-    xs)
-  (flush-output-port smt-out))
+  (set! buffer (cons xs buffer)))
+
+(define (smt-flush!)
+  (let ([buffered (reverse buffer)])
+    (for-each
+      (lambda (stmts)
+        (for-each
+          (lambda (x)
+            ;(printf "~s\n" x)
+            ;(flush-output-port)
+            (fprintf smt-out "~s\n" x))
+          stmts))
+      buffered))
+  (flush-output-port smt-out)
+  (set! buffer '()))
+
+(define (smt-call/flush xs)
+  (smt-call xs)
+  (smt-flush!))
 
 ;; State: (Counter, Substitution, AssertionHistory)
 (define (state c s ah) (list c s ah))
@@ -105,14 +118,15 @@
     (let ((st (inc-counter st)))
       ;(smt/check st)
       ;st
-      (if (= (remainder (get-counter st) 30) 0)
+      (if (= (remainder (get-counter st) 500) 0)
           (smt/check st)
           st))))
 
 (define smt/check
   (lambda (st)
-    (smt-call `((check-sat-assuming
-                 ,(map (lambda (x) (assumption-id->symbol (car x))) (state-assertion-history st)))))
+    (smt-call/flush
+      `((check-sat-assuming
+          ,(map (lambda (x) (assumption-id->symbol (car x))) (state-assertion-history st)))))
     (if (smt-read-sat)
         st
         #f)))
@@ -144,7 +158,7 @@
   (set! assumption-count 0)
   (set! seen-assumptions empty-seen-assumptions)
   (set! child-assumptions empty-child-assumptions)
-  (smt-call '((reset)))
+  (smt-call/flush '((reset)))
   )
 
 
