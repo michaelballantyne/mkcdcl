@@ -1,31 +1,17 @@
-(define empty-subst-map '())
-
-(define subst-map-length t:size)
-
-; Returns #f if not found, or a pair of u and the result of the lookup.
-; This distinguishes between #f indicating absence and being the result.
-(define subst-map-lookup
-  (lambda (u S)
-    (let ((res (t:lookup (var-idx u) S)))
-      (if res
-        (data-val res)
-        #f))))
-
+(define empty-subst-map empty-intmap)
+(define subst-map-length intmap-count)
+(define (subst-map-lookup u S)
+  (intmap-ref S (var-idx u)))
 (define (subst-map-add S var val)
-  (t:bind (var-idx var) val S))
-
-(define subst-map-eq? eq?)
-
-
+  (intmap-set S (var-idx var) val))
 
 ;;(define smt-cmd "cvc4 --lang=smt2.6 -m --incremental --fmf-fun")
 (define smt-cmd "z3 -in -t:20")
 
-(define-values (smt-out smt-in smt-err smt-p)
-  (open-process-ports smt-cmd 'block (native-transcoder)))
+(define-values (smt-out smt-in smt-err smt-p) (values #f #f #f #f))
 (define (smt-reset!)
   (let-values (((out in err p)
-                (open-process-ports smt-cmd 'block (native-transcoder))))
+                (process/text-ports smt-cmd)))
     (set! smt-out out)
     (set! smt-in in)
     (set! smt-err err)
@@ -73,28 +59,27 @@
 (define empty-state `(0 ,empty-subst-map ,empty-assertion-history))
 
 ;; a set of asserted assumption variable ids
-(define empty-seen-assumptions '())
+(define empty-seen-assumptions empty-intmap)
 (define seen-assumptions empty-seen-assumptions)
 (define (saw-assumption! id)
-  (set! seen-assumptions (t:bind id #t seen-assumptions)))
+  (set! seen-assumptions (intmap-set seen-assumptions id #t)))
 (define (seen-assumption? id)
-  (t:lookup id seen-assumptions))
+  (intmap-ref seen-assumptions id))
 (define (assumption-id->symbol id)
-  (string->symbol (format #f "_a~a" id)))
+  (string->symbol (format "_a~a" id)))
 (define assumption-count 0)
 (define (fresh-assumption-id!)
   (set! assumption-count (+ 1 assumption-count))
   (smt-call `((declare-const ,(assumption-id->symbol assumption-count) Bool)))
   assumption-count)
-(define empty-child-assumptions '())
+(define empty-child-assumptions empty-intmap)
 (define child-assumptions empty-child-assumptions)
 (define (get-child-assumptions! id)
-  (let ((r (t:lookup id child-assumptions)))
-    (if r
-        (data-val r)
+  (let ((r (intmap-ref child-assumptions id)))
+    (or r
         (begin
           (let ((new-cs (cons (fresh-assumption-id!) (fresh-assumption-id!))))
-            (set! child-assumptions (t:bind id new-cs child-assumptions))
+            (set! child-assumptions (intmap-set child-assumptions id new-cs))
             new-cs)))))
 (define left car)
 (define right cdr)
@@ -286,12 +271,8 @@
     (lambda (x id)
       (set! counter (+ 1 counter))
       (vector
-        (string->symbol (format #f "_v_~a_~a" x id)) counter)
+        (string->symbol (format "_v_~a_~a" x id)) counter)
       )))
-
-;(define (var x id)
-  ;(vector
-   ;(string->symbol (format #f "_v_~a_~a" x id))))
 
 (define (var? x)
   (vector? x))
@@ -529,3 +510,5 @@
 
 (define fail (lambda (ctx) (lambda (st) #f)))
 (define succeed (lambda (ctx) (lambda (st) st)))
+
+(smt-reset!)

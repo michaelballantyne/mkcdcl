@@ -132,10 +132,6 @@
     (map pretty-print r)
     (length r)))
 
-(define scheme-eval
-  (lambda (c)
-    (eval c (environment '(rnrs)))))
-
 (define quine
   '((lambda ((vr z)) (list (vr z) (list (quote quote) (vr z))))
     (quote (lambda ((vr z)) (list (vr z) (list (quote quote) (vr z)))))))

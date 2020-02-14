@@ -1,5 +1,3 @@
-(load "helper.scm")
-(load "mk.scm")
 (load "test-check.scm")
 
 (test "nil-1"
