@@ -102,14 +102,14 @@
 
 (define (smt/add ctx stmt st)
   (smt-call (list stmt))
-  (state-assertion-history-update st (lambda (old) (cons (cons ctx stmt) old))))
+  (state-assertion-history-update st (lambda (old) (cons ctx old))))
 (define (smt/add-if-new ctx stmt st)
   (unless (seen-assumption? ctx)
     (saw-assumption! ctx)
     (smt-call (list stmt)))
   ;; may have seen the assumption along a different search path
   ;; so updating always
-  (state-assertion-history-update st (lambda (old) (cons (cons ctx stmt) old))))
+  (state-assertion-history-update st (lambda (old) (cons ctx old))))
 
 ;; Counter: Integer (used to decide whether to actually call the solver)
 (define (inc-counter st)
@@ -129,7 +129,7 @@
   (lambda (st)
     (smt-call/flush
       `((check-sat-assuming
-          ,(map (lambda (x) (assumption-id-sym (car x))) (state-assertion-history st)))))
+          ,(map assumption-id-sym (state-assertion-history st)))))
     (if (smt-read-sat)
         st
         #f)))
@@ -139,7 +139,7 @@
     (smt/add-if-new ctx `(assert (= ,(assumption-id-sym ctx) ,e)) st)))
 
 (define (smt/assert-leaf ctx st)
-  (state-assertion-history-update st (lambda (old) (cons (cons ctx '(assert (= 1 1))) old))))
+  (state-assertion-history-update st (lambda (old) (cons ctx old))))
 
 (define (smt/conflict prov ctx st)
   ;; OK to be ephemeral, only boost
