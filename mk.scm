@@ -414,7 +414,7 @@
        (let-values (((ctx1 ctx2) (get-child-assumptions! ctx)))
          (lambdag@ (st)
                    (let ([st (assert-and ctx1 ctx2 ctx st)])
-                     (bind ((ig1 ctx1) st) (ig2 ctx2)))))))
+                     (and st (bind ((ig1 ctx1) st) (ig2 ctx2))))))))
 
 (define-syntax conj*
   (syntax-rules ()
@@ -437,7 +437,7 @@
        (let-values (((ctx1 ctx2) (get-child-assumptions! ctx)))
          (lambdag@ (st)
                    (let ([st (assert-or ctx1 ctx2 ctx st)])
-                     (mplus ((ig1 ctx1) st) (inc (((ig2) ctx2) st))))))))
+                     (and st (mplus ((ig1 ctx1) st) (inc (((ig2) ctx2) st)))))))))
 
 (define-syntax disj*
   (syntax-rules ()
