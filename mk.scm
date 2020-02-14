@@ -63,8 +63,9 @@
 (define state-assertion-history caddr)
 (define (state-s-set st s)
   (state (state-counter st) s (state-assertion-history st)))
-(define (state-assertion-history-update st f)
-  (state (state-counter st) (state-s st) (f (state-assertion-history st))))
+(define (extend-assertion-history st ctx)
+  (state (state-counter st) (state-s st)
+         (cons (assumption-id-sym ctx) (state-assertion-history st))))
 ;; AssertionHistory: (AssumptionVariableId, SMT_Statements)
 ;; Substitution: AList from Variable to (Term,ProvenanceSet)
 ;; ProvenanceSet: List of AssumptionVariableId
@@ -102,14 +103,14 @@
 
 (define (smt/add ctx stmt st)
   (smt-call (list stmt))
-  (state-assertion-history-update st (lambda (old) (cons ctx old))))
+  (extend-assertion-history st ctx))
 (define (smt/add-if-new ctx stmt st)
   (unless (seen-assumption? ctx)
     (saw-assumption! ctx)
     (smt-call (list stmt)))
   ;; may have seen the assumption along a different search path
   ;; so updating always
-  (state-assertion-history-update st (lambda (old) (cons ctx old))))
+  (extend-assertion-history st ctx))
 
 ;; Counter: Integer (used to decide whether to actually call the solver)
 (define (inc-counter st)
@@ -129,7 +130,7 @@
   (lambda (st)
     (smt-call/flush
       `((check-sat-assuming
-          ,(map assumption-id-sym (state-assertion-history st)))))
+          ,(state-assertion-history st))))
     (if (smt-read-sat)
         st
         #f)))
@@ -139,11 +140,11 @@
     (smt/add-if-new ctx `(assert (= ,(assumption-id-sym ctx) ,e)) st)))
 
 (define (smt/assert-leaf ctx st)
-  (state-assertion-history-update st (lambda (old) (cons ctx old))))
+  (extend-assertion-history st ctx))
 
-(define (smt/conflict prov ctx st)
+(define (smt/conflict prov st)
   ;; OK to be ephemeral, only boost
-  (smt-call (list `(assert (not (and . ,(map assumption-id-sym prov))))))
+  (smt-call (list `(assert (not (and . ,prov)))))
   #f)
 
 (define smt/purge
@@ -291,7 +292,7 @@
 (define (var-idx v)
   (vector-ref v 0))
 
-(define (prov-from-ctx ctx) (list ctx))
+(define (prov-from-ctx ctx) (list (assumption-id-sym ctx)))
 (define (== u v)
   (lambda (ctx)
     (lambda (st)
@@ -300,7 +301,7 @@
             (unify-check u v (state-s st) (prov-from-ctx ctx))))
         (if success?
             (smt/assert-leaf ctx (state-s-set st s))
-            (smt/conflict s ctx st))))))
+            (smt/conflict s st))))))
 
 ;Search
 
