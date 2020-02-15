@@ -1,7 +1,7 @@
 (library
   (mk-chez)
   (export run run* == fresh conde conj2 disj2 scheme-eval)
-  (import (rename (chezscheme) [fold-left foldl]))
+  (import (except (rename (chezscheme) [fold-left foldl]) subst))
 
   ; Trie implementation, due to Abdulaziz Ghuloum. Used for substitution
   ; and constraint store.

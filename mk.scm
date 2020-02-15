@@ -1,9 +1,87 @@
+(define new-scope
+  (lambda ()
+    (list 'scope)))
+
+(define nonlocal-scope
+  (list 'non-local-scope))
+
+(define scope-eq? eq?)
+
+(define unbound (list 'unbound))
+
+(define var
+  (let ((counter -1))
+    (lambda (scope)
+      (set! counter (+ 1 counter))
+      (vector unbound scope counter))))
+
+
+(define (var? x)
+  (vector? x))
+
+(define var-val
+  (lambda (x)
+    (vector-ref x 0)))
+
+(define set-var-val!
+  (lambda (x v)
+    (vector-set! x 0 v)))
+
+(define var-scope
+  (lambda (x)
+    (vector-ref x 1)))
+
+(define var-idx
+  (lambda (x)
+    (vector-ref x 2)))
+
+(define initial-scope (new-scope))
 (define empty-subst-map empty-intmap)
 (define subst-map-length intmap-count)
 (define (subst-map-lookup u S)
   (intmap-ref S (var-idx u)))
 (define (subst-map-add S var val)
   (intmap-set S (var-idx var) val))
+
+(define subst
+  (lambda (mapping scope)
+    (cons mapping scope)))
+
+(define subst-map car)
+
+(define subst-scope cdr)
+
+(define subst-length
+  (lambda (S)
+    (subst-map-length (subst-map S))))
+
+(define subst-with-scope
+  (lambda (S new-scope)
+    (subst (subst-map S) new-scope)))
+
+(define empty-subst (subst empty-subst-map initial-scope))
+
+(define subst-add
+  (lambda (S x v)
+    ; set-var-val! optimization: set the value directly on the
+    ; variable object if we haven't branched since its creation
+    ; (the scope of the variable and the substitution are the same).
+    ; Otherwise extend the substitution mapping.
+    (if (scope-eq? (var-scope x) (subst-scope S))
+      (begin
+        (set-var-val! x v)
+        S)
+      (subst (subst-map-add (subst-map S) x v) (subst-scope S)))))
+
+(define subst-lookup
+  (lambda (u S)
+    ; set-var-val! optimization.
+    ; Tried checking the scope here to avoid a subst-map-lookup
+    ; if it was definitely unbound, but that was slower.
+    (if (not (eq? (var-val u) unbound))
+      (var-val u)
+      (subst-map-lookup u (subst-map S)))))
+
 
 ;;(define smt-cmd "cvc4 --lang=smt2.6 -m --incremental --fmf-fun")
 (define smt-cmd "z3 -in -t:20")
@@ -66,11 +144,16 @@
 (define (extend-assertion-history st ctx)
   (state (state-counter st) (state-s st)
          (cons ctx (state-assertion-history st))))
+(define state-with-scope
+  (lambda (st new-scope)
+    (state (state-counter st)
+           (subst-with-scope (state-s st) new-scope)
+           (state-assertion-history st))))
 ;; AssertionHistory: (AssumptionVariableId, SMT_Statements)
 ;; Substitution: AList from Variable to (Term,ProvenanceSet)
 ;; ProvenanceSet: List of AssumptionVariableId
 (define empty-assertion-history '())
-(define empty-state `(0 ,empty-subst-map ,empty-assertion-history))
+(define empty-state `(0 ,empty-subst ,empty-assertion-history))
 
 ;; a set of asserted assumption variable ids
 (define empty-seen-assumptions make-eq-hashtable)
@@ -154,8 +237,7 @@
   (set! assumption-count 0)
   (set! seen-assumptions (empty-seen-assumptions))
   (set! child-assumptions (empty-child-assumptions))
-  (smt-call/flush '((reset)))
-  )
+  (smt-call/flush '((reset))))
 
 
 (define rhs
@@ -178,7 +260,7 @@
   (lambda (v s)
     (cond
       ((var? v)
-       (let ((a (subst-map-lookup v s)))
+       (let ((a (subst-lookup v s)))
          (cond
            (a (let-values (((t prov) (walk (car a) s)))
                 (values t (provenance-union (cdr a) prov))))
@@ -187,7 +269,7 @@
 
 (define ext-s
   (lambda (x v s prov)
-    (subst-map-add s x  `(,v . ,prov))))
+    (subst-add s x `(,v . ,prov))))
 
 
 ;; Example 1
@@ -272,23 +354,12 @@
 (define reify
   (lambda (v)
     (lambda (st)
-      (let ((s (state-s st)))
-        (let ((v (walk* v s)))
-          (walk* v (reify-s v empty-subst-map)))))))
+      (let ([st (state-with-scope st nonlocal-scope)])
+        (let ((s (state-s st)))
+          (let ((v (walk* v s)))
+            (walk* v (reify-s v empty-subst))))))))
 
-(define var
-  (let ((counter -1))
-    (lambda ()
-      (set! counter (+ 1 counter))
-      (vector
-        counter)
-      )))
 
-(define (var? x)
-  (vector? x))
-
-(define (var-idx v)
-  (vector-ref v 0))
 
 (define (prov-from-ctx ctx) (list ctx))
 (define (== u v)
@@ -426,9 +497,9 @@
      (lambda (ctx)
        (lambdag@ (st)
                  (inc
-                   ;; this will break with macro-generated freshes
-                   (let ((x (var)) ...)
-                     (((conj* ig0 ig ...) ctx) st))))))))
+                   (let ([scope (subst-scope (state-s st))])
+                     (let ((x (var scope)) ...)
+                       (((conj* ig0 ig ...) ctx) st)))))))))
 
 ; -> Goal
 (define (disj2 ig1 ig2)
@@ -449,11 +520,12 @@
      (lambda (ctx)
        (lambdag@ (st)
          (inc
-          (((disj*
-              (conj* ig0 ig ...)
-              (conj* ig1 ig^ ...) ...)
-            ctx)
-           st)))))))
+           (let ([st (state-with-scope st (new-scope))])
+             (((disj*
+                 (conj* ig0 ig ...)
+                 (conj* ig1 ig^ ...) ...)
+               ctx)
+              st))))))))
 #;
 (define-syntax conde
   (syntax-rules ()
@@ -470,12 +542,11 @@
      (begin
        (smt/reset!)
        (let ((ctx (fresh-assumption-id!)))
-         (let ((q (var)))
+         (let ((q (var initial-scope)))
            (map (reify q)
                 (take n
                       (inc
                        (((conj* ig ... smt/purge) ctx)
-
                         empty-state))))))))))
 
 (define-syntax run*
