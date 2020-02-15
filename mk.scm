@@ -155,13 +155,6 @@
 (define empty-assertion-history '())
 (define empty-state `(0 ,empty-subst ,empty-assertion-history))
 
-;; a set of asserted assumption variable ids
-(define empty-seen-assumptions make-eq-hashtable)
-(define seen-assumptions (empty-seen-assumptions))
-(define (saw-assumption! id)
-  (hashtable-set! seen-assumptions id #t))
-(define (seen-assumption? id)
-  (hashtable-contains? seen-assumptions id))
 (define (assumption-id->symbol id)
   (string->symbol (format "_a~a" id)))
 (define assumption-count 0)
@@ -174,24 +167,14 @@
 ;(define assumption-id-int car)
 (define empty-child-assumptions make-eq-hashtable)
 (define child-assumptions (empty-child-assumptions))
-(define (get-child-assumptions! id)
+(define (get-child-assumptions+assert! id type)
   (let ((r (hashtable-ref child-assumptions id #f)))
     (if r
         (values (car r) (cdr r))
         (let ([l (fresh-assumption-id!)] [r (fresh-assumption-id!)])
           (hashtable-set! child-assumptions id (cons l r))
+          (smt-call (list (list type l r)))
           (values l r)))))
-
-(define (smt/add ctx stmt st)
-  (smt-call (list stmt))
-  (extend-assertion-history st ctx))
-(define (smt/add-if-new ctx stmt st)
-  (unless (seen-assumption? ctx)
-    (saw-assumption! ctx)
-    (smt-call (list stmt)))
-  ;; may have seen the assumption along a different search path
-  ;; so updating always
-  (extend-assertion-history st ctx))
 
 ;; Counter: Integer (used to decide whether to actually call the solver)
 (define (inc-counter st)
@@ -202,8 +185,8 @@
   (lambda (st)
     (let ((st (inc-counter st)))
       ;(smt/check st)
-      ;st
-      (if (= (remainder (get-counter st) 200) 0)
+      st
+      #;(if (= (remainder (get-counter st) 200) 0)
           (smt/check st)
           st))))
 
@@ -216,9 +199,6 @@
         st
         #f)))
 
-(define (smt/assert e ctx st)
-  (smt/check-sometimes
-    (smt/add-if-new ctx `(assert (= ,ctx ,e)) st)))
 
 (define (smt/assert-leaf ctx st)
   (extend-assertion-history st ctx))
@@ -235,7 +215,6 @@
 
 (define (smt/reset!)
   (set! assumption-count 0)
-  (set! seen-assumptions (empty-seen-assumptions))
   (set! child-assumptions (empty-child-assumptions))
   (smt-call/flush '((reset))))
 
@@ -468,23 +447,22 @@
          ((c f) (cons c
                   (take (and n (- n 1)) f))))))))
 
-(define (assert-and ctx1 ctx2 ctx st)
-  (smt/assert `(and ,ctx1
-                    ,ctx2)
-              ctx st))
-
-(define (assert-or ctx1 ctx2 ctx st)
-  (smt/assert `(or ,ctx1
-                   ,ctx2)
-              ctx st))
+;(define-syntax define-relation
+  ;(syntax-rules ()
+    ;[(_ (name args ...) body)
+     ;(define (name args ...)
+       ;(lambda (ctx)
+         ;(lambda (st)
+           ;((body ctx) st))))]))
 
 ; -> Goal
 (define (conj2 ig1 ig2)
      (lambda (ctx)
-       (let-values (((ctx1 ctx2) (get-child-assumptions! ctx)))
-         (lambdag@ (st)
-                   (let ([st (assert-and ctx1 ctx2 ctx st)])
-                     (and st (bind ((ig1 ctx1) st) (ig2 ctx2))))))))
+       (let-values (((ctx1 ctx2) (get-child-assumptions+assert! ctx 'and)))
+         (let ([g1 (ig1 ctx1)] [g2 (ig2 ctx2)])
+           (lambdag@ (st)
+                     (let ([st (smt/check-sometimes (extend-assertion-history st ctx))])
+                       (and st (bind (g1 st) g2))))))))
 
 (define-syntax conj*
   (syntax-rules ()
@@ -503,16 +481,17 @@
 
 ; -> Goal
 (define (disj2 ig1 ig2)
-     (lambda (ctx)
-       (let-values (((ctx1 ctx2) (get-child-assumptions! ctx)))
-         (lambdag@ (st)
-                   (let ([st (assert-or ctx1 ctx2 ctx st)])
-                     (and st (mplus ((ig1 ctx1) st) (inc (((ig2) ctx2) st)))))))))
+  (lambda (ctx)
+    (let-values (((ctx1 ctx2) (get-child-assumptions+assert! ctx 'or)))
+      (let ([g1 (ig1 ctx1)] [g2 (ig2 ctx2)])
+        (lambdag@ (st)
+                  (let ([st (smt/check-sometimes (extend-assertion-history st ctx))])
+                    (and st (mplus (g1 st) (inc (g2 st))))))))))
 
 (define-syntax disj*
   (syntax-rules ()
     ((_ ig) ig)
-    ((_ ig0 ig ...) (disj2 ig0 (lambda () (disj* ig ...))))))
+    ((_ ig0 ig ...) (disj2 ig0 (disj* ig ...)))))
 
 (define-syntax conde
   (syntax-rules ()
