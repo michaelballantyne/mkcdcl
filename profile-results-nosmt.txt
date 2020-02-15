@@ -1,0 +1,286 @@
+50 quines after computing symbols early
+    664 collections
+    19.014074442s elapsed cpu time, including 8.552532234s collecting
+    19.016977067s elapsed real time, including 8.556312209s collecting
+    5593481248 bytes allocated, including 4619458832 bytes reclaimed
+
+faster-mk:
+    317 collections
+    6.953384556s elapsed cpu time, including 2.982376655s collecting
+    6.953793714s elapsed real time, including 2.983689937s collecting
+    2674530544 bytes allocated, including 2433958512 bytes reclaimed
+
+50 quines after only keeping assertion var names in the ctx
+    655 collections
+    17.906115990s elapsed cpu time, including 7.175280939s collecting
+    17.907156438s elapsed real time, including 7.178210778s collecting
+    5513453120 bytes allocated, including 4729867472 bytes reclaimed
+
+50 quines after only using symbols in subst
+    649 collections
+    17.406156617s elapsed cpu time, including 7.030481802s collecting
+    17.411119002s elapsed real time, including 7.035125536s collecting
+    5462267504 bytes allocated, including 4686807184 bytes reclaimed
+
+after hasheq:
+    601 collections
+    15.796041042s elapsed cpu time, including 7.421473466s collecting
+    16.070147947s elapsed real time, including 7.559801279s collecting
+    5024365056 bytes allocated, including 4297595088 bytes reclaimed
+
+before set-var-val!:
+    601 collections
+    15.851622580s elapsed cpu time, including 7.474954305s collecting
+    15.852574023s elapsed real time, including 7.477609584s collecting
+    5024365184 bytes allocated, including 4297647872 bytes reclaimed
+
+after set-var-val!:
+    619 collections
+    16.041983698s elapsed cpu time, including 7.564099878s collecting
+    16.042944108s elapsed real time, including 7.566908747s collecting
+    5178760592 bytes allocated, including 4438167504 bytes reclaimed
+
+without keeping track of seen assertions:
+    549 collections
+    14.422917848s elapsed cpu time, including 6.784782737s collecting
+    14.424002185s elapsed real time, including 6.787232284s collecting
+    4607525408 bytes allocated, including 3965319984 bytes reclaimed
+
+without building child assumption table:
+    545 collections
+    9.111132813s elapsed cpu time, including 4.927306575s collecting
+    9.113246752s elapsed real time, including 4.929452390s collecting
+    4599845728 bytes allocated, including 4139498528 bytes reclaimed
+
+neither seen assertions or child assumptions:
+    488 collections
+    8.308326827s elapsed cpu time, including 4.353787200s collecting
+    8.310732502s elapsed real time, including 4.357662131s collecting
+    4120686432 bytes allocated, including 3573888496 bytes reclaimed
+
+more eager, only child assumption map:
+    544 collections
+    14.248404030s elapsed cpu time, including 6.824532109s collecting
+    14.250816820s elapsed real time, including 6.827654596s collecting
+    4564049840 bytes allocated, including 3901853424 bytes reclaimed
+
+set-cdr! tree:
+    539 collections
+    12.771987211s elapsed cpu time, including 6.233866862s collecting
+    12.772761108s elapsed real time, including 6.236288509s collecting
+    4549558160 bytes allocated, including 3895742080 bytes reclaimed
+
+
+
+Profiling results
+-----------------
+  Total cpu time observed: 20478ms (out of 20500ms)
+  Number of samples taken: 235 (once every 87ms)
+  (Hiding functions with self<1.0% and local<2.0%: 1 of 37 hidden)
+
+================================================================
+                                 Caller
+ Idx    Total        Self      Name+src                   Local%
+        ms(pct)      ms(pct)     Callee
+================================================================
+                                 eval-one-top [13]        100.0%
+ [1] 20478(100.0%)    0(0.0%)  profile-thunk ...are/pkgs/profile-lib/main.rkt:9:0
+                                 run [5]                  100.0%
+----------------------------------------------------------------
+ [2] 20478(100.0%)    0(0.0%)  ??? ...acket/racket/collects/racket/repl.rkt:11:26
+                                 ??? [9]                  100.0%
+----------------------------------------------------------------
+                                 ??? [24]                 100.0%
+ [3]  1247(6.1%)      0(0.0%)  ??? /home/michaelb/mk/mkcdcl/mk.scm:385:26
+                                 ??? [29]                  44.0%
+                                 ??? [30]                  21.5%
+                                 ??? [26]                  21.5%
+                                 ??? [24]                  13.0%
+----------------------------------------------------------------
+                                 loop [23]                100.0%
+ [4]    50(0.2%)      0(0.0%)  pretty-print .../collects/racket/pretty.rkt:212:14
+                                 generic-write [6]        100.0%
+----------------------------------------------------------------
+                                 profile-thunk [1]        100.0%
+ [5] 20478(100.0%)    0(0.0%)  run ...racket/share/pkgs/profile-lib/main.rkt:39:2
+                                 loop [7]                 100.0%
+----------------------------------------------------------------
+                                 pretty-print [4]         100.0%
+ [6]    50(0.2%)      0(0.0%)  generic-write .../collects/racket/pretty.rkt:420:0
+                                 pr [8]                   100.0%
+----------------------------------------------------------------
+                                 run [5]                  100.0%
+ [7] 20478(100.0%)    0(0.0%)  loop (unknown source)
+                                 ??? [9]                  100.0%
+----------------------------------------------------------------
+                                 ??? [11]                  33.3%
+                                 loop [10]                 33.3%
+                                 generic-write [6]         33.3%
+ [8]    50(0.2%)      0(0.0%)  pr ...cket/racket/collects/racket/pretty.rkt:989:4
+                                 loop [10]                 33.3%
+                                 ??? [11]                  33.3%
+                                 ??? [12]                  33.3%
+----------------------------------------------------------------
+                                 loop [7]                  50.0%
+                                 ??? [2]                   50.0%
+ [9] 20478(100.0%)    0(0.0%)  ??? ...share/pkgs/xrepl-lib/xrepl/xrepl.rkt:1478:0
+                                 eval-one-top [13]        100.0%
+----------------------------------------------------------------
+                                 pr [8]                   100.0%
+[10]    50(0.2%)      0(0.0%)  loop ...t/racket/collects/racket/pretty.rkt:1261:6
+                                 pr [8]                   100.0%
+----------------------------------------------------------------
+                                 pr [8]                   100.0%
+[11]    50(0.2%)      0(0.0%)  ??? ...et/racket/collects/racket/pretty.rkt:1276:9
+                                 pr [8]                   100.0%
+----------------------------------------------------------------
+                                 pr [8]                   100.0%
+[12]    50(0.2%)      0(0.0%)  ??? ...t/racket/collects/racket/pretty.rkt:1015:19
+                                 wr* [14]                 100.0%
+----------------------------------------------------------------
+                                 ??? [9]                  100.0%
+[13] 20478(100.0%)    0(0.0%)  eval-one-top (unknown source)
+                                 profile-thunk [1]         50.0%
+                                 ??? [15]                  49.9%
+                                 ok [17]                    0.1%
+----------------------------------------------------------------
+                                 wr-lst [19]               25.0%
+                                 ??? [12]                  25.0%
+                                 loop [18]                 50.0%
+[14]    50(0.2%)      0(0.0%)  wr* ...ket/racket/collects/racket/pretty.rkt:699:2
+                                 loop [18]                 50.0%
+                                 wr-lst [19]               25.0%
+                                 ??? [16]                  25.0%
+----------------------------------------------------------------
+                                 eval-one-top [13]        100.0%
+[15] 20428(99.8%)     0(0.0%)  ??? ...lects/racket/private/more-scheme.rkt:336:52
+                                 take [20]                100.0%
+----------------------------------------------------------------
+                                 wr* [14]                 100.0%
+[16]    50(0.2%)     50(0.2%)  ??? ...et/racket/collects/racket/pretty.rkt:272:13
+----------------------------------------------------------------
+                                 eval-one-top [13]        100.0%
+[17]    50(0.2%)      0(0.0%)  ok ...e/michaelb/mk/mkcdcl/tagged-quines.scm:130:2
+                                 map [21]                 100.0%
+----------------------------------------------------------------
+                                 wr* [14]                 100.0%
+[18]    50(0.2%)      0(0.0%)  loop ...t/racket/collects/racket/pretty.rkt:742:16
+                                 wr* [14]                 100.0%
+----------------------------------------------------------------
+                                 wr* [14]                 100.0%
+[19]    50(0.2%)      0(0.0%)  wr-lst .../racket/collects/racket/pretty.rkt:732:4
+                                 wr* [14]                 100.0%
+----------------------------------------------------------------
+                                 ??? [15]                   6.8%
+                                 take [20]                 93.2%
+[20] 20428(99.8%)  1246(6.1%)  take /home/michaelb/mk/mkcdcl/mk.scm:389:2
+                                 take [20]                 93.2%
+                                 ??? [22]                   6.3%
+----------------------------------------------------------------
+                                 ok [17]                  100.0%
+[21]    50(0.2%)      0(0.0%)  map ...acket/collects/racket/private/map.rkt:35:13
+                                 loop [23]                100.0%
+----------------------------------------------------------------
+                                 ??? [26]                   0.3%
+                                 ??? [22]                   0.8%
+                                 take [20]                 47.8%
+                                 ??? [24]                  51.1%
+[22] 19182(93.7%)  2346(11.5%) ??? /home/michaelb/mk/mkcdcl/mk.scm:383:11
+                                 ??? [24]                  90.5%
+                                 ??? [25]                   4.0%
+                                 ??? [22]                   0.8%
+----------------------------------------------------------------
+                                 map [21]                   9.1%
+                                 loop [23]                 90.9%
+[23]    50(0.2%)      0(0.0%)  loop ...cket/collects/racket/private/map.rkt:40:19
+                                 loop [23]                 90.9%
+                                 pretty-print [4]           9.1%
+----------------------------------------------------------------
+                                 ??? [3]                    0.1%
+                                 ??? [26]                   0.4%
+                                 ??? [22]                  28.0%
+                                 ??? [24]                  71.5%
+[24] 19022(92.9%)  4508(22.0%) ??? /home/michaelb/mk/mkcdcl/mk.scm:372:12
+                                 ??? [24]                  71.5%
+                                 ??? [22]                  16.6%
+                                 ??? [29]                   2.5%
+                                 ??? [25]                   1.1%
+                                 ??? [3]                    0.9%
+                                 ??? [30]                   0.6%
+                                 ??? [26]                   0.5%
+                                 ??? [31]                   0.4%
+                                 ??? [27]                   0.3%
+                                 bind [28]                  0.1%
+----------------------------------------------------------------
+                                 ??? [24]                  45.9%
+                                 ??? [22]                  54.1%
+[25]  4128(20.2%)  1974(9.6%)  ??? /home/michaelb/mk/mkcdcl/mk.scm:437:9
+                                 ??? [29]                  50.9%
+                                 ??? [32]                   1.2%
+----------------------------------------------------------------
+                                 ??? [3]                   21.5%
+                                 ??? [24]                  78.5%
+[26]  1249(6.1%)      0(0.0%)  ??? /home/michaelb/mk/mkcdcl/mk.scm:374:24
+                                 ??? [24]                  66.0%
+                                 ??? [22]                  18.7%
+                                 ??? [29]                  11.2%
+                                 ??? [30]                   4.1%
+----------------------------------------------------------------
+                                 ??? [24]                 100.0%
+[27]   400(2.0%)    120(0.6%)  ??? /home/michaelb/mk/mkcdcl/mk.scm:435:5
+                                 fresh-assumption-id! [33] 70.1%
+----------------------------------------------------------------
+                                 ??? [24]                 100.0%
+[28]    60(0.3%)      0(0.0%)  bind /home/michaelb/mk/mkcdcl/mk.scm:380:2
+                                 ??? [31]                 100.0%
+----------------------------------------------------------------
+                                 ??? [26]                   1.4%
+                                 ??? [3]                    7.0%
+                                 ??? [29]                  19.7%
+                                 ??? [25]                  29.1%
+                                 ??? [24]                  42.9%
+[29]  7234(35.3%)  6482(31.7%) ??? /home/michaelb/mk/mkcdcl/mk.scm:414:9
+                                 ??? [29]                  19.7%
+                                 ??? [31]                   5.1%
+                                 ??? [32]                   2.2%
+----------------------------------------------------------------
+                                 ??? [26]                   3.9%
+                                 ??? [3]                   20.3%
+                                 ??? [24]                  75.8%
+[30]  1321(6.5%)    956(4.7%)  ??? /home/michaelb/mk/mkcdcl/mk.scm:428:17
+                                 ??? [32]                  27.6%
+----------------------------------------------------------------
+                                 bind [28]                  3.3%
+                                 ??? [29]                  32.8%
+                                 ??? [24]                  63.9%
+[31]  1803(8.8%)   1028(5.0%)  ??? /home/michaelb/mk/mkcdcl/mk.scm:296:4
+                                 unify-check [34]          29.5%
+                                 walk [36]                 13.5%
+----------------------------------------------------------------
+                                 ??? [25]                   8.8%
+                                 ??? [29]                  28.0%
+                                 ??? [30]                  63.2%
+[32]   577(2.8%)      0(0.0%)  ??? /home/michaelb/mk/mkcdcl/mk.scm:412:5
+                                 fresh-assumption-id! [33]100.0%
+----------------------------------------------------------------
+                                 ??? [27]                  32.7%
+                                 ??? [32]                  67.3%
+[33]   857(4.2%)    857(4.2%)  fresh-assumption-id! ...aelb/mk/mkcdcl/mk.scm:85:0
+----------------------------------------------------------------
+                                 unify-check [34]           7.6%
+                                 ??? [31]                  92.4%
+[34]   532(2.6%)    362(1.8%)  unify-check /home/michaelb/mk/mkcdcl/mk.scm:210:2
+                                 occurs-check [35]         32.1%
+                                 unify-check [34]           7.6%
+----------------------------------------------------------------
+                                 occurs-check [35]         49.0%
+                                 unify-check [34]          51.0%
+[35]   171(0.8%)     88(0.4%)  occurs-check /home/michaelb/mk/mkcdcl/mk.scm:236:2
+                                 occurs-check [35]         49.0%
+                                 walk [36]                 48.2%
+----------------------------------------------------------------
+                                 occurs-check [35]         25.3%
+                                 ??? [31]                  74.7%
+[36]   326(1.6%)    326(1.6%)  walk /home/michaelb/mk/mkcdcl/mk.scm:178:2
+----------------------------------------------------------------
+
