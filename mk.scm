@@ -143,7 +143,7 @@
   (state (state-counter st) s (state-assertion-history st)))
 (define (extend-assertion-history st ctx)
   (state (state-counter st) (state-s st)
-         (cons ctx (state-assertion-history st))))
+         (cons (ctx->assertion-var ctx) (state-assertion-history st))))
 (define state-with-scope
   (lambda (st new-scope)
     (state (state-counter st)
@@ -165,15 +165,17 @@
     id))
 ;(define assumption-id-sym cdr)
 ;(define assumption-id-int car)
-(define empty-child-assumptions make-eq-hashtable)
-(define child-assumptions (empty-child-assumptions))
-(define (get-child-assumptions+assert! id type)
-  (let ((r (hashtable-ref child-assumptions id #f)))
+(define empty-child-assumptions (lambda () (cons (fresh-assumption-id!) #f)))
+(define (initial-ctx) (empty-child-assumptions))
+(define (ctx->assertion-var ctx)
+  (car ctx))
+(define (get-child-assumptions+assert! ctx type)
+  (let ((r (cdr ctx)))
     (if r
         (values (car r) (cdr r))
-        (let ([l (fresh-assumption-id!)] [r (fresh-assumption-id!)])
-          (hashtable-set! child-assumptions id (cons l r))
-          (smt-call (list (list type l r)))
+        (let ([l (cons (fresh-assumption-id!) #f)] [r (cons (fresh-assumption-id!) #f)])
+          (set-cdr! ctx (cons l r))
+          (smt-call (list `(assert (= ,(ctx->assertion-var l) (,type ,(ctx->assertion-var l) ,(ctx->assertion-var r))))))
           (values l r)))))
 
 ;; Counter: Integer (used to decide whether to actually call the solver)
@@ -185,8 +187,8 @@
   (lambda (st)
     (let ((st (inc-counter st)))
       ;(smt/check st)
-      st
-      #;(if (= (remainder (get-counter st) 200) 0)
+      ;st
+      (if (= (remainder (get-counter st) 200) 0)
           (smt/check st)
           st))))
 
@@ -215,7 +217,6 @@
 
 (define (smt/reset!)
   (set! assumption-count 0)
-  (set! child-assumptions (empty-child-assumptions))
   (smt-call/flush '((reset))))
 
 
@@ -340,7 +341,7 @@
 
 
 
-(define (prov-from-ctx ctx) (list ctx))
+(define (prov-from-ctx ctx) (list (ctx->assertion-var ctx)))
 (define (== u v)
   (lambda (ctx)
     (lambda (st)
@@ -520,7 +521,7 @@
     ((_ n (q) ig ...)
      (begin
        (smt/reset!)
-       (let ((ctx (fresh-assumption-id!)))
+       (let ((ctx (initial-ctx)))
          (let ((q (var initial-scope)))
            (map (reify q)
                 (take n
