@@ -175,7 +175,7 @@
         (values (car r) (cdr r))
         (let ([l (cons (fresh-assumption-id!) #f)] [r (cons (fresh-assumption-id!) #f)])
           (set-cdr! ctx (cons l r))
-          (smt-call (list `(assert (= ,(ctx->assertion-var l) (,type ,(ctx->assertion-var l) ,(ctx->assertion-var r))))))
+          (smt-call (list `(assert (= ,(ctx->assertion-var ctx) (,type ,(ctx->assertion-var l) ,(ctx->assertion-var r))))))
           (values l r)))))
 
 ;; Counter: Integer (used to decide whether to actually call the solver)
