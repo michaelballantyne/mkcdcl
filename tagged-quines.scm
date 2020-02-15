@@ -165,7 +165,7 @@
       (assert (equal? (scheme-eval b) a))
       (list a b)))
   (normalize
-   (run 5 (q)
+   (run 1 (q)
      (fresh (a b)
        (== q `(,a ,b))
        (ev '() a `(code ,b))

@@ -188,7 +188,7 @@
     (let ((st (inc-counter st)))
       ;(smt/check st)
       ;st
-      (if (= (remainder (get-counter st) 200) 0)
+      (if (= (remainder (get-counter st) 30) 0)
           (smt/check st)
           st))))
 
@@ -522,6 +522,7 @@
      (begin
        (smt/reset!)
        (let ((ctx (initial-ctx)))
+         (smt-call (list `(assert ,(ctx->assertion-var ctx))))
          (let ((q (var initial-scope)))
            (map (reify q)
                 (take n
