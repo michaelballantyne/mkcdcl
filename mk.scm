@@ -65,7 +65,7 @@
   (state (state-counter st) s (state-assertion-history st)))
 (define (extend-assertion-history st ctx)
   (state (state-counter st) (state-s st)
-         (cons (assumption-id-sym ctx) (state-assertion-history st))))
+         (cons ctx (state-assertion-history st))))
 ;; AssertionHistory: (AssumptionVariableId, SMT_Statements)
 ;; Substitution: AList from Variable to (Term,ProvenanceSet)
 ;; ProvenanceSet: List of AssumptionVariableId
@@ -73,12 +73,12 @@
 (define empty-state `(0 ,empty-subst-map ,empty-assertion-history))
 
 ;; a set of asserted assumption variable ids
-(define empty-seen-assumptions empty-intmap)
-(define seen-assumptions empty-seen-assumptions)
+(define empty-seen-assumptions make-eq-hashtable)
+(define seen-assumptions (empty-seen-assumptions))
 (define (saw-assumption! id)
-  (set! seen-assumptions (intmap-set seen-assumptions (assumption-id-int id) #t)))
+  (hashtable-set! seen-assumptions id #t))
 (define (seen-assumption? id)
-  (intmap-ref seen-assumptions (assumption-id-int id)))
+  (hashtable-contains? seen-assumptions id))
 (define (assumption-id->symbol id)
   (string->symbol (format "_a~a" id)))
 (define assumption-count 0)
@@ -86,20 +86,18 @@
   (set! assumption-count (+ 1 assumption-count))
   (let ([id (assumption-id->symbol assumption-count)])
     (smt-call `((declare-const ,id Bool)))
-    (cons assumption-count id)))
-(define assumption-id-sym cdr)
-(define assumption-id-int car)
-(define empty-child-assumptions empty-intmap)
-(define child-assumptions empty-child-assumptions)
+    id))
+;(define assumption-id-sym cdr)
+;(define assumption-id-int car)
+(define empty-child-assumptions make-eq-hashtable)
+(define child-assumptions (empty-child-assumptions))
 (define (get-child-assumptions! id)
-  (let ((r (intmap-ref child-assumptions (assumption-id-int id))))
+  (let ((r (hashtable-ref child-assumptions id #f)))
     (if r
         (values (car r) (cdr r))
         (let ([l (fresh-assumption-id!)] [r (fresh-assumption-id!)])
-          (set! child-assumptions (intmap-set child-assumptions (assumption-id-int id) (cons l r)))
+          (hashtable-set! child-assumptions id (cons l r))
           (values l r)))))
-(define left car)
-(define right cdr)
 
 (define (smt/add ctx stmt st)
   (smt-call (list stmt))
@@ -137,7 +135,7 @@
 
 (define (smt/assert e ctx st)
   (smt/check-sometimes
-    (smt/add-if-new ctx `(assert (= ,(assumption-id-sym ctx) ,e)) st)))
+    (smt/add-if-new ctx `(assert (= ,ctx ,e)) st)))
 
 (define (smt/assert-leaf ctx st)
   (extend-assertion-history st ctx))
@@ -154,8 +152,8 @@
 
 (define (smt/reset!)
   (set! assumption-count 0)
-  (set! seen-assumptions empty-seen-assumptions)
-  (set! child-assumptions empty-child-assumptions)
+  (set! seen-assumptions (empty-seen-assumptions))
+  (set! child-assumptions (empty-child-assumptions))
   (smt-call/flush '((reset)))
   )
 
@@ -292,7 +290,7 @@
 (define (var-idx v)
   (vector-ref v 0))
 
-(define (prov-from-ctx ctx) (list (assumption-id-sym ctx)))
+(define (prov-from-ctx ctx) (list ctx))
 (define (== u v)
   (lambda (ctx)
     (lambda (st)
@@ -400,13 +398,13 @@
                   (take (and n (- n 1)) f))))))))
 
 (define (assert-and ctx1 ctx2 ctx st)
-  (smt/assert `(and ,(assumption-id-sym ctx1)
-                    ,(assumption-id-sym ctx2))
+  (smt/assert `(and ,ctx1
+                    ,ctx2)
               ctx st))
 
 (define (assert-or ctx1 ctx2 ctx st)
-  (smt/assert `(or ,(assumption-id-sym ctx1)
-                   ,(assumption-id-sym ctx2))
+  (smt/assert `(or ,ctx1
+                   ,ctx2)
               ctx st))
 
 ; -> Goal

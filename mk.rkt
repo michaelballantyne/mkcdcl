@@ -14,7 +14,7 @@
          racket/system
          (only-in rnrs/base-6 assert))
 
-(define empty-intmap (hash))
+(define empty-intmap (hasheq))
 (define (intmap-count m) (hash-count m))
 (define (intmap-ref m k) (hash-ref m k (lambda () #f)))
 (define (intmap-set m k v) (hash-set m k v))
@@ -28,5 +28,11 @@
 
 (define (scheme-eval c)
   (eval c))
+
+(define make-eq-hashtable make-hasheq)
+(define hashtable-ref hash-ref)
+(define hashtable-set! hash-set!)
+(define hashtable-contains? hash-has-key?)
+
 
 (include "mk.scm")
