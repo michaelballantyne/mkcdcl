@@ -143,7 +143,7 @@
         quine
         `(code ,quine)))))
 
-(time
+#;(time
   (ok
  (map
   (lambda (q)
@@ -155,18 +155,18 @@
          q
          `(code ,q)))))))
 
-;(time
-;(ok
- ;(map
-  ;(lambda (ab)
-    ;(let ((a (car ab))
-          ;(b (cadr ab)))
-      ;(assert (equal? (scheme-eval a) b))
-      ;(assert (equal? (scheme-eval b) a))
-      ;(list a b)))
-  ;(normalize
-   ;(run 5 (q)
-     ;(fresh (a b)
-       ;(== q `(,a ,b))
-       ;(ev '() a `(code ,b))
-       ;(ev '() b `(code ,a))))))))
+(time
+(ok
+ (map
+  (lambda (ab)
+    (let ((a (car ab))
+          (b (cadr ab)))
+      (assert (equal? (scheme-eval a) b))
+      (assert (equal? (scheme-eval b) a))
+      (list a b)))
+  (normalize
+   (run 5 (q)
+     (fresh (a b)
+       (== q `(,a ,b))
+       (ev '() a `(code ,b))
+       (ev '() b `(code ,a))))))))
