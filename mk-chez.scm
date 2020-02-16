@@ -1,6 +1,19 @@
 (library
   (mk-chez)
-  (export run run* == fresh conde conj2 disj2 scheme-eval)
+  (export run run*
+          ==
+          fresh conde
+
+          use-set-var-val!-optimization
+          smt-timeout
+          smt-log-unknowns
+          smt-log-stmts
+          smt-log-sat-ratio
+          smt-should-check-every
+          smt-should-check-p
+
+          scheme-eval)
+
   (import (except (rename (chezscheme) [fold-left foldl]) subst))
 
   ; Trie implementation, due to Abdulaziz Ghuloum. Used for substitution

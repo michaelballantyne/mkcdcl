@@ -1,3 +1,15 @@
+(define use-set-var-val!-optimization (make-parameter #t))
+(define smt-timeout (make-parameter 3))
+(define smt-log-unknowns (make-parameter #f))
+(define smt-log-stmts (make-parameter #f))
+(define smt-log-sat-ratio (make-parameter #f))
+(define smt-should-check-every (make-parameter 30))
+(define smt-should-check-p
+  (make-parameter
+    (lambda (cnt)
+      (and (smt-should-check-every)
+        (= cnt (smt-should-check-every))))))
+
 (define new-scope
   (lambda ()
     (list 'scope)))
@@ -14,7 +26,6 @@
     (lambda (scope)
       (set! counter (+ 1 counter))
       (vector unbound scope counter))))
-
 
 (define (var? x)
   (vector? x))
@@ -67,7 +78,7 @@
     ; variable object if we haven't branched since its creation
     ; (the scope of the variable and the substitution are the same).
     ; Otherwise extend the substitution mapping.
-    (if (scope-eq? (var-scope x) (subst-scope S))
+    (if (and (use-set-var-val!-optimization) (scope-eq? (var-scope x) (subst-scope S)))
       (begin
         (set-var-val! x v)
         S)
@@ -84,7 +95,7 @@
 
 
 ;;(define smt-cmd "cvc4 --lang=smt2.6 -m --incremental --fmf-fun")
-(define smt-cmd "z3 -in -t:20")
+(define smt-cmd (format "z3 -in -t:~a" (smt-timeout)))
 
 (define-values (smt-out smt-in smt-err smt-p) (values #f #f #f #f))
 (define (smt-reset!)
@@ -95,20 +106,26 @@
     (set! smt-err err)
     (set! smt-p p)))
 
+(define sat-count 0)
+(define unsat-count 0)
+(define (reset-sat-counts!)
+  (set! sat-count 0)
+  (set! unsat-count 0))
+
 (define (smt-read-sat)
   (let ([r (read smt-in)])
-    ;(printf "read sat>> ~a\n" r)
     (cond
       ((eq? r 'sat)
-         ;(printf "read-sat: sat\n")
+       (set! sat-count (+ 1 sat-count))
        #t)
       ((eq? r 'unsat)
-         ;(printf "read-sat: unsat\n")
+       (set! unsat-count (+ 1 unsat-count))
        #f)
       ((eq? r 'unknown)
        (begin
-         (printf "read-sat: unknown\n")
-         (printf "assumptions: ~a\n" assumption-count)
+         (when (smt-log-unknowns)
+           (printf "read-sat: unknown\n")
+           (printf "assumptions: ~a\n" assumption-count))
          #t))
       (else (error 'read-sat (format "~a" r))))))
 
@@ -122,8 +139,9 @@
       (lambda (stmts)
         (for-each
           (lambda (x)
-            ;(printf "~s\n" x)
-            ;(flush-output-port)
+            (when (smt-log-stmts)
+              (printf "~s\n" x)
+              (flush-output-port))
             (fprintf smt-out "~s\n" x))
           stmts))
       buffered))
@@ -134,7 +152,7 @@
   (smt-call xs)
   (smt-flush!))
 
-;; State: (Counter, Substitution, AssertionHistory)
+;; State: (list/c Counter Substitution AssertionHistory)
 (define (state c s ah) (list c s ah))
 (define state-counter car)
 (define state-s cadr)
@@ -149,9 +167,10 @@
     (state (state-counter st)
            (subst-with-scope (state-s st) new-scope)
            (state-assertion-history st))))
-;; AssertionHistory: (AssumptionVariableId, SMT_Statements)
-;; Substitution: AList from Variable to (Term,ProvenanceSet)
-;; ProvenanceSet: List of AssumptionVariableId
+
+;; AssertionHistory: (listof AssumptionVariableId)
+;; Substitution: (intmap/c Variable (cons/c Term ProvenanceSet))
+;; ProvenanceSet: (listof AssumptionVariableId)
 (define empty-assertion-history '())
 (define empty-state `(0 ,empty-subst ,empty-assertion-history))
 
@@ -163,10 +182,9 @@
   (let ([id (assumption-id->symbol assumption-count)])
     (smt-call `((declare-const ,id Bool)))
     id))
-;(define assumption-id-sym cdr)
-;(define assumption-id-int car)
-(define empty-child-assumptions (lambda () (cons (fresh-assumption-id!) #f)))
-(define (initial-ctx) (empty-child-assumptions))
+
+(define (empty-ctx) (cons (fresh-assumption-id!) #f))
+(define (initial-ctx) (empty-ctx))
 (define (ctx->assertion-var ctx)
   (car ctx))
 (define (get-child-assumptions+assert! ctx type)
@@ -175,22 +193,32 @@
         (values (car r) (cdr r))
         (let ([l (cons (fresh-assumption-id!) #f)] [r (cons (fresh-assumption-id!) #f)])
           (set-cdr! ctx (cons l r))
-          (smt-call (list `(assert (= ,(ctx->assertion-var ctx) (,type ,(ctx->assertion-var l) ,(ctx->assertion-var r))))))
+          (smt-call (list `(assert (= ,(ctx->assertion-var ctx)
+                                      (,type ,(ctx->assertion-var l) ,(ctx->assertion-var r))))))
           (values l r)))))
 
 ;; Counter: Integer (used to decide whether to actually call the solver)
 (define (inc-counter st)
   (cons (+ 1 (car st)) (cdr st)))
+(define (reset-counter st)
+  (cons 0 (cdr st)))
 (define get-counter car)
+
+(define (update-sat-ratio!)
+  (let ([total (+ sat-count unsat-count)])
+    (when (> total 500)
+      (when (smt-log-sat-ratio)
+        (let ([sat-ratio (/ sat-count total)])
+          (printf "sat ratio: ~a\n" sat-ratio)))
+      (reset-sat-counts!))))
 
 (define smt/check-sometimes
   (lambda (st)
-    (let ((st (inc-counter st)))
-      ;(smt/check st)
-      ;st
-      (if (= (remainder (get-counter st) 30) 0)
-          (smt/check st)
-          st))))
+    (if ((smt-should-check-p) (get-counter st))
+        (begin
+          (update-sat-ratio!)
+          (smt/check (reset-counter st)))
+      (inc-counter st))))
 
 (define smt/check
   (lambda (st)
@@ -200,10 +228,6 @@
     (if (smt-read-sat)
         st
         #f)))
-
-
-(define (smt/assert-leaf ctx st)
-  (extend-assertion-history st ctx))
 
 (define (smt/conflict prov st)
   ;; OK to be ephemeral, only boost
@@ -218,18 +242,6 @@
 (define (smt/reset!)
   (set! assumption-count 0)
   (smt-call/flush '((reset))))
-
-
-(define rhs
-  (lambda (pair)
-    (cdr pair)))
-
-(define lhs
-  (lambda (pair)
-    (car pair)))
-
-(define size-s
-  subst-map-length)
 
 ;;(define (provenance-union . args) (apply append args))
 (define provenance-union append)
@@ -321,7 +333,7 @@
     (let-values (((v _) (walk v s)))
       (cond
         ((var? v)
-         (ext-s v (reify-name (size-s s)) s '()))
+         (ext-s v (reify-name (subst-length s)) s '()))
         ((pair? v) (reify-s (cdr v)
                      (reify-s (car v) s)))
         (else s)))))
@@ -349,7 +361,7 @@
           (((success? s)
             (unify-check u v (state-s st) (prov-from-ctx ctx))))
         (if success?
-            (smt/assert-leaf ctx (state-s-set st s))
+            (extend-assertion-history (state-s-set st s) ctx)
             (smt/conflict s st))))))
 
 ;Search
@@ -448,14 +460,6 @@
          ((c f) (cons c
                   (take (and n (- n 1)) f))))))))
 
-;(define-syntax define-relation
-  ;(syntax-rules ()
-    ;[(_ (name args ...) body)
-     ;(define (name args ...)
-       ;(lambda (ctx)
-         ;(lambda (st)
-           ;((body ctx) st))))]))
-
 ; -> Goal
 (define (conj2 ig1 ig2)
      (lambda (ctx)
@@ -506,15 +510,6 @@
                  (conj* ig1 ig^ ...) ...)
                ctx)
               st))))))))
-#;
-(define-syntax conde
-  (syntax-rules ()
-    ((_ (g0 g ...) (g1 g^ ...) ...)
-     (lambdag@ (st)
-       (inc
-         (mplus*
-          (bind* (g0 st) g ...)
-          (bind* (g1 st) g^ ...) ...))))))
 
 (define-syntax run
   (syntax-rules ()
