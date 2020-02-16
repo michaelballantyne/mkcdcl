@@ -7,8 +7,8 @@
 (define smt-should-check-p
   (make-parameter
     (lambda (cnt)
-      (and (smt-should-check-every)
-        (= cnt (smt-should-check-every))))))
+      (let ([v (smt-should-check-every)])
+        (and v (>= cnt v))))))
 
 (define new-scope
   (lambda ()
@@ -95,22 +95,30 @@
 
 
 ;;(define smt-cmd "cvc4 --lang=smt2.6 -m --incremental --fmf-fun")
-(define smt-cmd (format "z3 -in -t:~a" (smt-timeout)))
+(define (smt-cmd) (format "z3 -in -t:~a" (smt-timeout)))
 
 (define-values (smt-out smt-in smt-err smt-p) (values #f #f #f #f))
-(define (smt-reset!)
+(define (smt-hard-reset!)
   (let-values (((out in err p)
-                (process/text-ports smt-cmd)))
+                (process/text-ports (smt-cmd))))
     (set! smt-out out)
     (set! smt-in in)
     (set! smt-err err)
-    (set! smt-p p)))
+    (set! smt-p p)
+    (smt-soft-reset!)))
+
+(define (smt-soft-reset!)
+  (set! assumption-count 0)
+  (reset-sat-counts!)
+  (smt-call/forget '((reset))))
 
 (define sat-count 0)
 (define unsat-count 0)
+(define unknown-count 0)
 (define (reset-sat-counts!)
   (set! sat-count 0)
-  (set! unsat-count 0))
+  (set! unsat-count 0)
+  (set! unknown-count 0))
 
 (define (smt-read-sat)
   (let ([r (read smt-in)])
@@ -123,6 +131,7 @@
        #f)
       ((eq? r 'unknown)
        (begin
+         (set! unknown-count (+ 1 unknown-count))
          (when (smt-log-unknowns)
            (printf "read-sat: unknown\n")
            (printf "assumptions: ~a\n" assumption-count))
@@ -133,9 +142,8 @@
 (define (smt-call xs)
   (set! buffer (cons xs buffer)))
 
-(define (smt-flush!)
-  (let ([buffered (reverse buffer)])
-    (for-each
+(define (smt-call+flush-unbuffered stmtss)
+  (for-each
       (lambda (stmts)
         (for-each
           (lambda (x)
@@ -144,13 +152,22 @@
               (flush-output-port))
             (fprintf smt-out "~s\n" x))
           stmts))
-      buffered))
+      stmtss)
+  (flush-output-port smt-out))
+
+(define (smt-flush!)
+  (let ([buffered (reverse buffer)])
+    (smt-call+flush-unbuffered buffered))
   (flush-output-port smt-out)
   (set! buffer '()))
 
 (define (smt-call/flush xs)
   (smt-call xs)
   (smt-flush!))
+
+(define (smt-call/forget stmts)
+  (smt-call+flush-unbuffered (list stmts))
+  (set! buffer '()))
 
 ;; State: (list/c Counter Substitution AssertionHistory)
 (define (state c s ah) (list c s ah))
@@ -204,11 +221,14 @@
   (cons 0 (cdr st)))
 (define get-counter car)
 
-(define (update-sat-ratio!)
+(define (update-sat-ratio! final)
   (let ([total (+ sat-count unsat-count)])
-    (when (> total 500)
+    (when (or final (> total 500))
       (when (smt-log-sat-ratio)
-        (let ([sat-ratio (/ sat-count total)])
+        (let ([sat-ratio (if (= total 0) 0 (/ sat-count total))])
+          (printf "sat count: ~a\n" sat-count)
+          (printf "unsat count: ~a\n" unsat-count)
+          (printf "unknown count: ~a\n" unknown-count)
           (printf "sat ratio: ~a\n" sat-ratio)))
       (reset-sat-counts!))))
 
@@ -216,7 +236,7 @@
   (lambda (st)
     (if ((smt-should-check-p) (get-counter st))
         (begin
-          (update-sat-ratio!)
+          (update-sat-ratio! #f)
           (smt/check (reset-counter st)))
       (inc-counter st))))
 
@@ -236,12 +256,9 @@
 
 (define smt/purge
   (lambda (ctx)
-    (lambda (st) st)
+    (lambda (st) (update-sat-ratio! #t) st)
     #;smt/check))
 
-(define (smt/reset!)
-  (set! assumption-count 0)
-  (smt-call/flush '((reset))))
 
 ;;(define (provenance-union . args) (apply append args))
 (define provenance-union append)
@@ -515,7 +532,7 @@
   (syntax-rules ()
     ((_ n (q) ig ...)
      (begin
-       (smt/reset!)
+       (smt-soft-reset!)
        (let ((ctx (initial-ctx)))
          (smt-call (list `(assert ,(ctx->assertion-var ctx))))
          (let ((q (var initial-scope)))
@@ -532,4 +549,4 @@
 (define fail (lambda (ctx) (lambda (st) #f)))
 (define succeed (lambda (ctx) (lambda (st) st)))
 
-(smt-reset!)
+(smt-hard-reset!)

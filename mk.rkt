@@ -12,6 +12,7 @@
          smt-log-sat-ratio
          smt-should-check-every
          smt-should-check-p
+         smt-hard-reset!
 
          assert
          scheme-eval)
