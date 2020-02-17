@@ -8,7 +8,7 @@
           smt-timeout
           smt-log-stmts
           smt-log-stats
-          smt-should-check-every
+          smt-check-every
           smt-should-check-p
           smt-hard-reset!
 

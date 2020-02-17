@@ -2,12 +2,12 @@
 (define smt-timeout (make-parameter 3))
 (define smt-log-stmts (make-parameter #f))
 (define smt-log-stats (make-parameter #f))
-(define smt-should-check-every (make-parameter 30))
+(define smt-check-every (make-parameter 30))
 
 (define smt-should-check-p
   (make-parameter
     (lambda (cnt)
-      (let ([v (smt-should-check-every)])
+      (let ([v (smt-check-every)])
         (and v (>= cnt v))))))
 
 (define new-scope
