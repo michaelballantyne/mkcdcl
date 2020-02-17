@@ -72,3 +72,6 @@ default 30
 ```
 
 Controls how often the SMT solver is queried. The solver will be queried for each state after this many steps of computation have been taken in miniKanren, roughly counted by disjunction and conjunction nodes entered.
+
+This number is important and fiddly. Performance varies non-continuously
+in this variable.
