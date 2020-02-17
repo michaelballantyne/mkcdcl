@@ -137,7 +137,7 @@
     (quote (lambda ((vr z)) (list (vr z) (list (quote quote) (vr z)))))))
 
 (ok
- (normalize
+ (map normalize
   (run* (q)
     (ev '()
         quine
@@ -149,7 +149,7 @@
   (lambda (q)
     (assert (equal? (scheme-eval q) q))
     q)
-  (normalize
+  (map normalize
    (run 50 (q)
      (ev '()
          q
@@ -164,7 +164,7 @@
       (assert (equal? (scheme-eval a) b))
       (assert (equal? (scheme-eval b) a))
       (list a b)))
-  (normalize
+  (map normalize
    (run 1 (q)
      (fresh (a b)
        (== q `(,a ,b))
