@@ -1,0 +1,5 @@
+In unification, the provenances of substitution associations explain a failure when they are involved in a walk that shows the two terms to be different---this is, in the else case of unify.
+
+In disequality, association provenances explain a failure when they show the terms to be the same, as in the `eq?` and `equal?` cases. We don't care about associations that help show a difference!
+
+So we can't use unify to implement disequality as we do normally. We need a different disunify that returns different provenance.
