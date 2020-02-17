@@ -5,7 +5,7 @@
   '(()))
 
 (test "bool-1"
-  (run* (q) (disj2 (== q #t) (== q #f)))
+  (run* (q) (conde [(== q #t)] [(== q #f)]))
   '(#t #f))
 
 (test "cons-1"
@@ -17,7 +17,7 @@
   '(#(closure x x ())))
 
 (test "int-1"
-  (run* (q) (disj2 (== q 1) (== q 2)))
+  (run* (q) (conde [(== q 1)] [(== q 2)]))
   '(1 2))
 
 (test "real-1"
