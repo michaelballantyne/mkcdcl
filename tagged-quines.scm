@@ -119,7 +119,7 @@
 (define normalize
   (lambda (t)
     (if (list? t)
-        (if (and (eq? 'vr (car t)) (null? (cddr t)))
+        (if (and (not (null? t)) (eq? 'vr (car t)) (null? (cddr t)))
             (normalize-var-name (cadr t))
             (map normalize t))
         (begin
