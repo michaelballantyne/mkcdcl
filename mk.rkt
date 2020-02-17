@@ -7,9 +7,8 @@
 
          use-set-var-val!-optimization
          smt-timeout
-         smt-log-unknowns
          smt-log-stmts
-         smt-log-sat-ratio
+         smt-log-stats
          smt-should-check-every
          smt-should-check-p
          smt-hard-reset!

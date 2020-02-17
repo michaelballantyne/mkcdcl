@@ -1,9 +1,9 @@
 (define use-set-var-val!-optimization (make-parameter #t))
 (define smt-timeout (make-parameter 3))
-(define smt-log-unknowns (make-parameter #f))
 (define smt-log-stmts (make-parameter #f))
-(define smt-log-sat-ratio (make-parameter #f))
+(define smt-log-stats (make-parameter #f))
 (define smt-should-check-every (make-parameter 30))
+
 (define smt-should-check-p
   (make-parameter
     (lambda (cnt)
@@ -107,8 +107,11 @@
     (set! smt-p p)
     (smt-soft-reset!)))
 
+(define unification-count 0)
+
 (define (smt-soft-reset!)
   (set! assumption-count 0)
+  (set! unification-count 0)
   (reset-sat-counts!)
   (smt-call/forget '((reset))))
 
@@ -130,12 +133,8 @@
        (set! unsat-count (+ 1 unsat-count))
        #f)
       ((eq? r 'unknown)
-       (begin
-         (set! unknown-count (+ 1 unknown-count))
-         (when (smt-log-unknowns)
-           (printf "read-sat: unknown\n")
-           (printf "assumptions: ~a\n" assumption-count))
-         #t))
+       (set! unknown-count (+ 1 unknown-count))
+       #t)
       (else (error 'read-sat (format "~a" r))))))
 
 (define buffer '())
@@ -221,24 +220,27 @@
   (cons 0 (cdr st)))
 (define get-counter car)
 
-(define (update-sat-ratio! final)
-  (let ([total (+ sat-count unsat-count)])
+(define (update-stats! final)
+  (let ([total (+ sat-count unsat-count unknown-count)])
     (when (or final (> total 500))
-      (when (smt-log-sat-ratio)
-        (let ([sat-ratio (if (= total 0) 0 (/ sat-count total))])
-          (printf "sat count: ~a\n" sat-count)
-          (printf "unsat count: ~a\n" unsat-count)
-          (printf "unknown count: ~a\n" unknown-count)
-          (printf "sat ratio: ~a\n" sat-ratio)))
+      (when (smt-log-stats)
+        (printf "sat count: ~a\n" sat-count)
+        (printf "unsat count: ~a\n" unsat-count)
+        (printf "unknown count: ~a\n" unknown-count)
+
+        (printf "total unifications: ~a\n" unification-count)
+        (printf "total assumption variables: ~a\n" assumption-count)
+        (printf "\n")
+        )
       (reset-sat-counts!))))
 
 (define smt/check-sometimes
   (lambda (st)
     (if ((smt-should-check-p) (get-counter st))
         (begin
-          (update-sat-ratio! #f)
+          (update-stats! #f)
           (smt/check (reset-counter st)))
-      (inc-counter st))))
+        (inc-counter st))))
 
 (define smt/check
   (lambda (st)
@@ -246,8 +248,8 @@
       `((check-sat-assuming
           ,(state-assertion-history st))))
     (if (smt-read-sat)
-        st
-        #f)))
+      st
+      #f)))
 
 (define (smt/conflict prov st)
   ;; OK to be ephemeral, only boost
@@ -256,8 +258,7 @@
 
 (define smt/purge
   (lambda (ctx)
-    (lambda (st) (update-sat-ratio! #t) st)
-    #;smt/check))
+    (lambda (st) (update-stats! #t) st)))
 
 
 ;;(define (provenance-union . args) (apply append args))
@@ -272,7 +273,7 @@
        (let ((a (subst-lookup v s)))
          (cond
            (a (let-values (((t prov) (walk (car a) s)))
-                (values t (provenance-union (cdr a) prov))))
+                          (values t (provenance-union (cdr a) prov))))
            (else (values v empty-provenance)))))
       (else (values v empty-provenance)))))
 
@@ -374,6 +375,7 @@
 (define (== u v)
   (lambda (ctx)
     (lambda (st)
+      (set! unification-count (+ 1 unification-count))
       (let-values
           (((success? s)
             (unify-check u v (state-s st) (prov-from-ctx ctx))))
