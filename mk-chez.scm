@@ -7,10 +7,10 @@
           use-set-var-val!-optimization
           smt-timeout
           smt-log-stmts
-          smt-log-stats
-          smt-check-every
-          smt-should-check-p
-          smt-hard-reset!
+          log-stats
+          check-every
+          should-check-p
+          hard-reset!
 
           scheme-eval)
 
@@ -153,4 +153,5 @@
     (lambda (c)
       (eval c (environment '(rnrs)))))
 
+  (include "smt.scm")
   (include "mk.scm"))

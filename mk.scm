@@ -1,13 +1,10 @@
 (define use-set-var-val!-optimization (make-parameter #t))
-(define smt-timeout (make-parameter 3))
-(define smt-log-stmts (make-parameter #f))
-(define smt-log-stats (make-parameter #f))
-(define smt-check-every (make-parameter 30))
-
-(define smt-should-check-p
+(define log-stats (make-parameter #f))
+(define check-every (make-parameter 30))
+(define should-check-p
   (make-parameter
     (lambda (cnt)
-      (let ([v (smt-check-every)])
+      (let ([v (check-every)])
         (and v (>= cnt v))))))
 
 (define new-scope
@@ -94,26 +91,7 @@
       (subst-map-lookup u (subst-map S)))))
 
 
-;;(define smt-cmd "cvc4 --lang=smt2.6 -m --incremental --fmf-fun")
-(define (smt-cmd) (format "z3 -in -t:~a" (smt-timeout)))
-
-(define-values (smt-out smt-in smt-err smt-p) (values #f #f #f #f))
-(define (smt-hard-reset!)
-  (let-values (((out in err p)
-                (process/text-ports (smt-cmd))))
-    (set! smt-out out)
-    (set! smt-in in)
-    (set! smt-err err)
-    (set! smt-p p)
-    (smt-soft-reset!)))
-
 (define unification-count 0)
-
-(define (smt-soft-reset!)
-  (set! assumption-count 0)
-  (set! unification-count 0)
-  (reset-sat-counts!)
-  (smt-call/forget '((reset))))
 
 (define sat-count 0)
 (define unsat-count 0)
@@ -122,51 +100,6 @@
   (set! sat-count 0)
   (set! unsat-count 0)
   (set! unknown-count 0))
-
-(define (smt-read-sat)
-  (let ([r (read smt-in)])
-    (cond
-      ((eq? r 'sat)
-       (set! sat-count (+ 1 sat-count))
-       #t)
-      ((eq? r 'unsat)
-       (set! unsat-count (+ 1 unsat-count))
-       #f)
-      ((eq? r 'unknown)
-       (set! unknown-count (+ 1 unknown-count))
-       #t)
-      (else (error 'read-sat (format "~a" r))))))
-
-(define buffer '())
-(define (smt-call xs)
-  (set! buffer (cons xs buffer)))
-
-(define (smt-call+flush-unbuffered stmtss)
-  (for-each
-      (lambda (stmts)
-        (for-each
-          (lambda (x)
-            (when (smt-log-stmts)
-              (printf "~s\n" x)
-              (flush-output-port))
-            (fprintf smt-out "~s\n" x))
-          stmts))
-      stmtss)
-  (flush-output-port smt-out))
-
-(define (smt-flush!)
-  (let ([buffered (reverse buffer)])
-    (smt-call+flush-unbuffered buffered))
-  (flush-output-port smt-out)
-  (set! buffer '()))
-
-(define (smt-call/flush xs)
-  (smt-call xs)
-  (smt-flush!))
-
-(define (smt-call/forget stmts)
-  (smt-call+flush-unbuffered (list stmts))
-  (set! buffer '()))
 
 ;; State: (list/c Counter Substitution AssertionHistory)
 (define (state c s ah) (list c s ah))
@@ -190,15 +123,6 @@
 (define empty-assertion-history '())
 (define empty-state `(0 ,empty-subst ,empty-assertion-history))
 
-(define (assumption-id->symbol id)
-  (string->symbol (format "_a~a" id)))
-(define assumption-count 0)
-(define (fresh-assumption-id!)
-  (set! assumption-count (+ 1 assumption-count))
-  (let ([id (assumption-id->symbol assumption-count)])
-    (smt-call `((declare-const ,id Bool)))
-    id))
-
 (define (empty-ctx) (cons (fresh-assumption-id!) (box #f)))
 (define (initial-ctx) (empty-ctx))
 (define (ctx->assertion-var ctx)
@@ -209,8 +133,10 @@
         (values (car r) (cdr r))
         (let ([l (empty-ctx)] [r (empty-ctx)])
           (set-box! (cdr ctx) (cons l r))
-          (smt-call (list `(assert (= ,(ctx->assertion-var ctx)
-                                      (,type ,(ctx->assertion-var l) ,(ctx->assertion-var r))))))
+	  (let ((v1 (ctx->assertion-var ctx))
+		(v2 (ctx->assertion-var l))
+		(v3 (ctx->assertion-var r)))
+	    (sat/constraint type v1 v2 v3))
           (values l r)))))
 
 ;; Counter: Integer (used to decide whether to actually call the solver)
@@ -223,7 +149,7 @@
 (define (update-stats! final)
   (let ([total (+ sat-count unsat-count unknown-count)])
     (when (or final (> total 500))
-      (when (smt-log-stats)
+      (when (log-stats)
         (printf "sat count: ~a\n" sat-count)
         (printf "unsat count: ~a\n" unsat-count)
         (printf "unknown count: ~a\n" unknown-count)
@@ -234,29 +160,28 @@
         )
       (reset-sat-counts!))))
 
-(define smt/check-sometimes
+(define check-sometimes
   (lambda (st)
-    (if ((smt-should-check-p) (get-counter st))
+    (if ((should-check-p) (get-counter st))
         (begin
           (update-stats! #f)
-          (smt/check (reset-counter st)))
+          (check (reset-counter st)))
         (inc-counter st))))
 
-(define smt/check
+(define check
   (lambda (st)
-    (smt-call/flush
-      `((check-sat-assuming
-          ,(state-assertion-history st))))
-    (if (smt-read-sat)
+    (let ((vars (state-assertion-history st)))
+    (if (check-sat-assuming vars)
       st
-      #f)))
+      #f))))
 
-(define (smt/conflict prov st)
+
+(define (cdcl/conflict prov st)
   ;; OK to be ephemeral, only boost
-  (smt-call (list `(assert (not (and . ,prov)))))
+  (sat/not-all prov)
   #f)
 
-(define smt/purge
+(define purge
   (lambda (ctx)
     (lambda (st) (update-stats! #t) st)))
 
@@ -381,7 +306,7 @@
             (unify-check u v (state-s st) (prov-from-ctx ctx))))
         (if success?
             (extend-assertion-history (state-s-set st s) ctx)
-            (smt/conflict s st))))))
+            (cdcl/conflict s st))))))
 
 ;Search
 
@@ -485,7 +410,7 @@
        (let-values (((ctx1 ctx2) (get-child-assumptions+assert! ctx 'and)))
          (let ([g1 (ig1 ctx1)] [g2 (ig2 ctx2)])
            (lambdag@ (st)
-                     (let ([st (smt/check-sometimes (extend-assertion-history st ctx))])
+                     (let ([st (check-sometimes (extend-assertion-history st ctx))])
                        (and st (bind (g1 st) g2))))))))
 
 (define-syntax conj*
@@ -509,7 +434,7 @@
     (let-values (((ctx1 ctx2) (get-child-assumptions+assert! ctx 'or)))
       (let ([g1 (ig1 ctx1)] [g2 (ig2 ctx2)])
         (lambdag@ (st)
-                  (let ([st (smt/check-sometimes (extend-assertion-history st ctx))])
+                  (let ([st (check-sometimes (extend-assertion-history st ctx))])
                     (and st (mplus (g1 st) (inc (g2 st))))))))))
 
 (define-syntax disj*
@@ -534,14 +459,14 @@
   (syntax-rules ()
     ((_ n (q) ig ...)
      (begin
-       (smt-soft-reset!)
+       (soft-reset!)
        (let ((ctx (initial-ctx)))
-         (smt-call (list `(assert ,(ctx->assertion-var ctx))))
+         ;;TODO: keep? (smt-call (list `(assert ,(ctx->assertion-var ctx))))
          (let ((q (var initial-scope)))
            (map (reify q)
                 (take n
                       (inc
-                       (((conj* ig ... smt/purge) ctx)
+                       (((conj* ig ... purge) ctx)
                         empty-state))))))))))
 
 (define-syntax run*
@@ -551,4 +476,4 @@
 (define fail (lambda (ctx) (lambda (st) #f)))
 (define succeed (lambda (ctx) (lambda (st) st)))
 
-(smt-hard-reset!)
+(hard-reset!)
