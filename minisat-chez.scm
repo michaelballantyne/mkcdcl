@@ -1,4 +1,5 @@
-(load-shared-object "../minisat-c-bindings/install/lib/libminisat-c.so.1")
+(define __libminisat__
+  (load-shared-object "../minisat-c-bindings/install/lib/libminisat-c.so.1"))
 
 (define minisat_new (foreign-procedure "minisat_new" () uptr))
 

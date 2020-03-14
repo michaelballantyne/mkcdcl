@@ -5,8 +5,8 @@
           fresh conde
 
           use-set-var-val!-optimization
-          smt-timeout
-          smt-log-stmts
+          ;;smt-timeout
+          ;;smt-log-stmts
           log-stats
           check-every
           should-check-p
@@ -153,5 +153,8 @@
     (lambda (c)
       (eval c (environment '(rnrs)))))
 
-  (include "smt.scm")
+  ;;(include "smt.scm")
+  (include "minisat-chez.scm")
+  (include "minisat.scm")
+  (include "mksat.scm")
   (include "mk.scm"))

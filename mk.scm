@@ -155,7 +155,7 @@
         (printf "unknown count: ~a\n" unknown-count)
 
         (printf "total unifications: ~a\n" unification-count)
-        (printf "total assumption variables: ~a\n" assumption-count)
+        ;;(printf "total assumption variables: ~a\n" assumption-count)
         (printf "\n")
         )
       (reset-sat-counts!))))
