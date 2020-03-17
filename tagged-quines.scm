@@ -143,7 +143,7 @@
         quine
         `(code ,quine)))))
 
-#;(time
+(time
   (ok
  (map
   (lambda (q)
@@ -165,7 +165,7 @@
       (assert (equal? (scheme-eval b) a))
       (list a b)))
   (map normalize
-   (run 1 (q)
+   (run 10 (q)
      (fresh (a b)
        (== q `(,a ,b))
        (ev '() a `(code ,b))
