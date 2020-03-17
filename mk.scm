@@ -265,18 +265,19 @@
 (define occurs-check
   (lambda (x v s prov)
     (let-values (((v v-prov) (walk v s)))
-      (cond
-        ((var? v)
-         (if (eq? v x)
-           (values #t (provenance-union prov v-prov))
-           (values #f (void))))
-        ((pair? v)
-         (let-values (((occurs? res-prov)
-                       (occurs-check x (car v) s (provenance-union prov v-prov))))
-           (if occurs?
-             (values #t res-prov)
-             (occurs-check x (cdr v) s (provenance-union prov v-prov)))))
-        (else (values #f (void)))))))
+      (let ([p (provenance-union v-prov prov)])
+        (cond
+          ((var? v)
+           (if (eq? v x)
+             (values #t p)
+             (values #f (void))))
+          ((pair? v)
+           (let-values (((occurs? res-prov)
+                         (occurs-check x (car v) s p)))
+             (if occurs?
+               (values #t res-prov)
+               (occurs-check x (cdr v) s p))))
+          (else (values #f (void))))))))
 
 (define walk*
   (lambda (w s)
