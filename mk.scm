@@ -93,6 +93,7 @@
 
 
 (define unification-count 0)
+(define assumption-count 0)
 
 (define sat-count 0)
 (define unsat-count 0)
@@ -157,16 +158,15 @@
 
 (define (update-stats! final)
   (let ([total (+ sat-count unsat-count unknown-count)])
-    (when (or final (> total 500))
+    (when (or final (> total 1000))
       (when (log-stats)
         (printf "sat count: ~a\n" sat-count)
         (printf "unsat count: ~a\n" unsat-count)
         (printf "unknown count: ~a\n" unknown-count)
-
         (printf "total unifications: ~a\n" unification-count)
-        ;;(printf "total assumption variables: ~a\n" assumption-count)
-        (printf "\n")
-        )
+        (printf "total assumption variables: ~a\n" assumption-count)
+        (sat/log-stats!)
+        (printf "\n"))
       (reset-sat-counts!))))
 
 (define check-sometimes
@@ -174,7 +174,7 @@
     (if ((should-check-p) (get-counter st))
         (begin
           (update-stats! #f)
-          (let ([checked (reset-counter st)])
+          (let ([checked (check (reset-counter st))])
             (if (debug-soundness)
               (or checked (fail-counter st))
               checked)))
@@ -495,5 +495,17 @@
 
 (define fail (lambda (ctx) (lambda (st) #f)))
 (define succeed (lambda (ctx) (lambda (st) st)))
+
+(define (hard-reset!)
+  (sat/hard-reset!)
+
+  (soft-reset!))
+
+(define (soft-reset!)
+  (set! unification-count 0)
+  (set! assumption-count 0)
+  (reset-sat-counts!)
+
+  (sat/soft-reset!))
 
 (hard-reset!)

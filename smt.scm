@@ -4,21 +4,16 @@
 ;;(define smt-cmd "cvc4 --lang=smt2.6 -m --incremental --fmf-fun")
 (define (smt-cmd) (format "z3 -in -t:~a" (smt-timeout)))
 
-
 (define-values (smt-out smt-in smt-err smt-p) (values #f #f #f #f))
-(define (hard-reset!)
+(define (sat/hard-reset!)
   (let-values (((out in err p)
                 (process/text-ports (smt-cmd))))
     (set! smt-out out)
     (set! smt-in in)
     (set! smt-err err)
-    (set! smt-p p)
-    (soft-reset!)))
+    (set! smt-p p)))
 
-(define (soft-reset!)
-  (set! assumption-count 0)
-  (set! unification-count 0)
-  (reset-sat-counts!)
+(define (sat/soft-reset!)
   (smt-call/forget '((reset))))
 
 (define (smt-read-sat)
@@ -68,7 +63,6 @@
 
 (define (assumption-id->symbol id)
   (string->symbol (format "_a~a" id)))
-(define assumption-count 0)
 (define (fresh-assumption-id!)
   (set! assumption-count (+ 1 assumption-count))
   (let ([id (assumption-id->symbol assumption-count)])
@@ -86,3 +80,6 @@
 
 (define (sat/not-all prov)
   (smt-call (list `(assert (not (and . ,prov))))))
+
+(define (sat/log-stats!)
+  (void))

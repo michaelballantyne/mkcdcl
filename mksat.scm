@@ -1,16 +1,15 @@
 (define sat-solver #f)
 
-(define (hard-reset!)
+(define (sat/hard-reset!)
+  (void))
+
+(define (sat/soft-reset!)
   (when sat-solver
     (sat/delete sat-solver))
   (set! sat-solver (sat/new)))
-  
-(define (soft-reset!)
-  (set! unification-count 0)
-  (reset-sat-counts!)
-  (hard-reset!))
 
 (define (fresh-assumption-id!)
+  (set! assumption-count (+ 1 assumption-count))
   (sat/new-var sat-solver))
 
 ;; (assert (= v1 (or v2 v3)))
@@ -49,5 +48,5 @@
 (define (sat/not-all prov)
   (sat/add-clause! sat-solver (map sat/neg prov)))
 
-(define (sat/decisions)
-  (sat/get-decisions sat-solver))
+(define (sat/log-stats!)
+  (printf "decisions: ~a\n" (sat/get-decisions sat-solver)))
