@@ -309,7 +309,7 @@
       (let ([st (state-with-scope st nonlocal-scope)])
         (let ((s (state-s st)))
           (let ((v (walk* v s)))
-            (walk* v (reify-s v empty-subst))))))))
+            (walk* v (reify-s v (subst-with-scope empty-subst nonlocal-scope)))))))))
 
 
 
