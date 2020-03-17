@@ -6,6 +6,7 @@
     (lambda (cnt)
       (let ([v (check-every)])
         (and v cnt (>= cnt v))))))
+(define debug-soundness (make-parameter #f))
 
 (define new-scope
   (lambda ()
@@ -173,10 +174,10 @@
     (if ((should-check-p) (get-counter st))
         (begin
           (update-stats! #f)
-          (check (reset-counter st))
-          #;(if (check (reset-counter st))
-            st
-            (fail-counter st)))
+          (let ([checked (reset-counter st)])
+            (if (debug-soundness)
+              (or checked (fail-counter st))
+              checked)))
         (inc-counter st))))
 
 (define check
@@ -306,6 +307,8 @@
 (define reify
   (lambda (v)
     (lambda (st)
+      (when (or (log-stats) (debug-soundness))
+        (printf "state ctr: ~a\n" (get-counter st)))
       (let ([st (state-with-scope st nonlocal-scope)])
         (let ((s (state-s st)))
           (let ((v (walk* v s)))
