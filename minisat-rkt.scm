@@ -1,7 +1,7 @@
 (require ffi/unsafe ffi/unsafe/define)
 
 (define-ffi-definer define-minisat
-  (ffi-lib "../minisat-c-bindings/install/lib/libminisat-c.so.1"))
+  (ffi-lib "minisat-c-bindings/install/lib/libminisat-c.so.1"))
 
 (define-minisat minisat_new (_fun -> _pointer))
 

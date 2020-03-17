@@ -1,0 +1,6 @@
+[submodule "minisat"]
+	path = minisat
+	url = git@github.com:metareflection/minisat.git
+[submodule "minisat-c-bindings"]
+	path = minisat-c-bindings
+	url = git@github.com:metareflection/minisat-c-bindings.git
