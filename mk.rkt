@@ -8,10 +8,12 @@
          use-set-var-val!-optimization
          smt-timeout
          smt-log-stmts
-         smt-log-stats
-         smt-check-every
-         smt-should-check-p
-         smt-hard-reset!
+         log-stats
+         check-every
+         should-check-p
+         debug-soundness
+
+         hard-reset!
 
          assert
          scheme-eval)
