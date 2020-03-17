@@ -1,8 +1,5 @@
 ;;; Generated at 2007-10-25 15:24:42
 
-(load "helper.scm")
-(load "mk.scm")
-
 
 (define-syntax test-check
   (syntax-rules ()
