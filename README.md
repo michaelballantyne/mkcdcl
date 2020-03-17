@@ -5,6 +5,21 @@ Currently supports the same syntax as
 as function definitions, `run`, `run*`, `==`,
 `fresh`, and `conde`.
 
+## Build prerequisites
+
+* `gcc` (or clang pretending to be gcc, on mac)
+* `cmake`
+
+## Building minisat
+
+```
+make
+```
+
+will check out the submodules for `minisat` and `minisat-c-bindings`,
+build the libraries, and install them in `minisat/build/install` and
+`minisat-c-bindings/install`.
+
 ## Running
 
 ## Chez Scheme
@@ -28,7 +43,7 @@ file; otherwise you'll have to set the path with Chez's `--libdirs` flag.
 
 ## Options
 
-The following are parameters that configure SMT behavior, optimizations,
+The following are parameters that configure SAT behavior, optimizations,
 and logging. Set parameters globally by calling `(param-name val)` or
 locally with `parameterize`.
 
@@ -42,36 +57,28 @@ optimization.
 
 
 ```
-smt-timeout: (parameter/c integer?)
-default 3
-```
-
-Sets the timeout for queries enforced by z3, in milliseconds. For
-changes in this parameter to take effect, call `(smt-hard-reset!)` to
-restart the solver.
-
-```
-smt-log-stmts: (parameter/c boolean?)
-default #f
-```
-
-When `#t`, the statements issued to z3 are logged to stdout.
-
-```
-smt-log-stats: (parameter/c boolean?)
+log-stats: (parameter/c boolean?)
 default #f
 ```
 
 When `#t`, log statistics on query satisfiability frequencies and the
 total number of assertion variables and unifications used in a query.
-Logs every 500 SMT calls.
+Logs every 1000 SAT calls.
 
 ```
-smt-check-every: (parameter/c (or/c integer? #f))
+check-every: (parameter/c (or/c integer? #f))
 default 30
 ```
 
-Controls how often the SMT solver is queried. The solver will be queried for each state after this many steps of computation have been taken in miniKanren, roughly counted by disjunction and conjunction nodes entered.
+Controls how often the SAT solver is queried. The solver will be queried for each state after this many steps of computation have been taken in miniKanren, roughly counted by disjunction and conjunction nodes entered.
 
-This number is important and fiddly. Performance varies non-continuously
-in this variable.
+
+```
+debug-soundness: (parameter/c boolean?)
+default #f
+```
+
+When this parameter is #t, miniKanren will query the SAT solver, but
+not cut off branches using the result. Instead, stores that the solver
+thinks are UNSAT will be marked. If any in fact succeed, meaning the
+solver's answer was incorrect, an error will be raised.
