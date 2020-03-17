@@ -10,6 +10,8 @@
           log-stats
           check-every
           should-check-p
+          debug-soundness
+
           hard-reset!
 
           scheme-eval
