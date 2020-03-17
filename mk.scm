@@ -195,7 +195,10 @@
 
 (define purge
   (lambda (ctx)
-    (lambda (st) (update-stats! #t) st)))
+    (lambda (st)
+      (when (and (debug-soundness) (not (get-counter st)))
+        (error 'purge "CDCL soundness bug" st))
+      (update-stats! #t) st)))
 
 
 ;;(define (provenance-union . args) (apply append args))
@@ -308,7 +311,7 @@
 (define reify
   (lambda (v)
     (lambda (st)
-      (when (or (log-stats) (debug-soundness))
+      (when (or (log-stats))
         (printf "state ctr: ~a\n" (get-counter st)))
       (let ([st (state-with-scope st nonlocal-scope)])
         (let ((s (state-s st)))
