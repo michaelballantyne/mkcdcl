@@ -57,6 +57,8 @@
      ls)
     (minisat_solve_commit sp)))
 
-
+(define (sat/get-decisions s)
+  (check-minisat-solver s 'sat/check-sat-assuming)
+  (minisat_num_decisions (minisat-solver-ptr s)))
 
 

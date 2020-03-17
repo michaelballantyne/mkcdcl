@@ -17,3 +17,5 @@
 (define minisat_okay (foreign-procedure "minisat_okay" (uptr) boolean))
 
 (define minisat_delete (foreign-procedure "minisat_delete" (uptr) void))
+
+(define minisat_num_decisions (foreign-procedure "minisat_num_decisions" (uptr) int))
