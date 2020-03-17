@@ -5,7 +5,7 @@
   (make-parameter
     (lambda (cnt)
       (let ([v (check-every)])
-        (and v (>= cnt v))))))
+        (and v cnt (>= cnt v))))))
 
 (define new-scope
   (lambda ()
@@ -141,10 +141,18 @@
 
 ;; Counter: Integer (used to decide whether to actually call the solver)
 (define (inc-counter st)
-  (cons (+ 1 (car st)) (cdr st)))
+  (if (car st)
+    (cons (+ 1 (car st)) (cdr st))
+    st))
+
 (define (reset-counter st)
-  (cons 0 (cdr st)))
+  (if (car st)
+    (cons 0 (cdr st))
+    st))
 (define get-counter car)
+
+(define (fail-counter st)
+  (cons #f (cdr st)))
 
 (define (update-stats! final)
   (let ([total (+ sat-count unsat-count unknown-count)])
@@ -165,7 +173,10 @@
     (if ((should-check-p) (get-counter st))
         (begin
           (update-stats! #f)
-          (check (reset-counter st)))
+          (check (reset-counter st))
+          #;(if (check (reset-counter st))
+            st
+            (fail-counter st)))
         (inc-counter st))))
 
 (define check
