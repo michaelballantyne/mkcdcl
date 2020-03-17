@@ -6,8 +6,6 @@
          conde
 
          use-set-var-val!-optimization
-         smt-timeout
-         smt-log-stmts
          log-stats
          check-every
          should-check-p
@@ -21,7 +19,8 @@
 (require racket/list
          racket/include
          racket/system
-         (only-in rnrs/base-6 assert))
+         (only-in rnrs/base-6 assert)
+         (only-in mzlib/compat define-structure))
 
 (define empty-intmap (hasheq))
 (define (intmap-count m) (hash-count m))
@@ -44,5 +43,10 @@
 (define hashtable-contains? hash-has-key?)
 
 
-(include "smt.scm")
+;(include "smt.scm")
+
+(include "minisat-rkt.scm")
+(include "minisat.scm")
+(include "mksat.scm")
+
 (include "mk.scm")
