@@ -256,20 +256,26 @@
 
 (define ext-s-check
   (lambda (x v s prov)
-    (cond
-      ((occurs-check x v s) (values #f prov))
-      (else (values #t (ext-s x v s prov))))))
+    (let-values (((occurs? prov^) (occurs-check x v s prov)))
+      (if occurs?
+        (values #f prov^)
+        (values #t (ext-s x v s prov))))))
 
 (define occurs-check
-  (lambda (x v s)
-    (let-values (((v _) (walk v s)))
+  (lambda (x v s prov)
+    (let-values (((v v-prov) (walk v s)))
       (cond
-        ((var? v) (eq? v x))
-        ((pair? v) 
-         (or 
-           (occurs-check x (car v) s)
-           (occurs-check x (cdr v) s)))
-        (else #f)))))
+        ((var? v)
+         (if (eq? v x)
+           (values #t (provenance-union prov v-prov))
+           (values #f (void))))
+        ((pair? v)
+         (let-values (((occurs? res-prov)
+                       (occurs-check x (car v) s (provenance-union prov v-prov))))
+           (if occurs?
+             (values #t res-prov)
+             (occurs-check x (cdr v) s (provenance-union prov v-prov)))))
+        (else (values #f (void)))))))
 
 (define walk*
   (lambda (w s)
