@@ -1,6 +1,6 @@
 (define use-set-var-val!-optimization (make-parameter #t))
 (define log-stats (make-parameter #f))
-(define check-every (make-parameter 30))
+(define check-every (make-parameter 15))
 (define should-check-p
   (make-parameter
     (lambda (cnt)
