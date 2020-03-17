@@ -12,7 +12,10 @@
           should-check-p
           hard-reset!
 
-          scheme-eval)
+          scheme-eval
+
+          fail
+          succeed)
 
   (import (except (rename (chezscheme) [fold-left foldl]) subst))
 
@@ -153,8 +156,10 @@
     (lambda (c)
       (eval c (environment '(rnrs)))))
 
-  ;;(include "smt.scm")
+  ;(include "smt.scm")
+
   (include "minisat-chez.scm")
   (include "minisat.scm")
   (include "mksat.scm")
+
   (include "mk.scm"))
