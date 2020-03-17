@@ -44,4 +44,5 @@
 (define hashtable-contains? hash-has-key?)
 
 
+(include "smt.scm")
 (include "mk.scm")
