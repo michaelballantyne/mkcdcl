@@ -6,6 +6,8 @@
   (set! sat-solver (sat/new)))
   
 (define (soft-reset!)
+  (set! unification-count 0)
+  (reset-sat-counts!)
   (hard-reset!))
 
 (define (fresh-assumption-id!)
@@ -38,7 +40,14 @@
    (else (error 'sat/constraint "unknown type" type))))
 
 (define (check-sat-assuming vars)
-  (sat/check-sat-assuming sat-solver (map sat/pos vars)))
+  (let ([res (sat/check-sat-assuming sat-solver (map sat/pos vars))])
+    (if res
+      (set! unknown-count (+ 1 unknown-count))
+      (set! unsat-count (+ 1 unsat-count)))
+    res))
 
 (define (sat/not-all prov)
   (sat/add-clause! sat-solver (map sat/neg prov)))
+
+(define (sat/decisions)
+  (sat/get-decisions sat-solver))
