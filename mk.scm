@@ -194,6 +194,12 @@
     (let ((res (intmap-ref (state-cs st) (var-idx v))))
       (or res empty-c))))
 
+; t:unbind in mk-chez.scm either is buggy or doesn't do what I would expect, so
+; I implement remove by setting the value to the empty constraint record.
+(define remove-c
+  (lambda (v st)
+    (state-cs-set st (intmap-set (state-cs st) (var-idx var) empty-c))))
+
 
 ;; AssertionHistory: (listof AssumptionVariableId)
 (define empty-assertion-history '())
@@ -362,33 +368,42 @@
            (else (values v empty-provenance)))))
       (else (values v empty-provenance)))))
 
-; Term, Term, Substitution, Provenance -> (#t, Substitution) or (#f, Provenance)
+; Term, Term, Substitution, Provenance -> (Substitution, Added) or (#f, Provenance)
 (define unify
   (lambda (u v s new-prov)
     (let-values (((u u-prov) (walk u s))
                  ((v v-prov) (walk v s)))
       (let ((p (provenance-union new-prov u-prov v-prov))) ;; TODO
         (cond
-          ((eq? u v) (values #t s))
+          ((eq? u v) (values s '()))
           ((var? u) (ext-s-check u v s p))
           ((var? v) (ext-s-check v u s p))
           ((and (pair? u) (pair? v))
-           (let-values (((success? s)
+           (let-values (((s added-or-p-car)
                          (unify
                           (car u) (car v) s p)))
-             (if success?
-                 (unify
-                  (cdr u) (cdr v) s p)
-                 (values #f s))))
+             (if s
+               (let-values (((s added-or-p-cdr) (unify (cdr u) (cdr v) s p)))
+                 (if s
+                   (values s (append added-or-p-car added-or-p-cdr))
+                   (values s added-or-p-cdr)))
+               (values #f added-or-p-car))))
           ((equal? u v) (values #t s))
           (else (values #f p)))))))
+
+;(define ext-s-check
+  ;(lambda (x v S)
+    ;(cond
+      ;((occurs-check x v S) (values #f #f))
+      ;(else (values (subst-add S x v) `((,x . ,v)))))))
+
 
 (define ext-s-check
   (lambda (x v s prov)
     (let-values (((occurs? prov^) (occurs-check x v s prov)))
       (if occurs?
         (values #f prov^)
-        (values #t (subst-add s x v prov))))))
+        (values (subst-add s x v prov) (list (cons x v)))))))
 
 (define occurs-check
   (lambda (x v s prov)
@@ -407,16 +422,133 @@
                (occurs-check x (cdr v) s p))))
           (else (values #f (void))))))))
 
+
+; Constraints
+; C refers to the constraint store map
+; c refers to an individual constraint record
+
+; Constraint: State -> #f | State
+;
+; (note that a Constraint is a Goal but a Goal is not a Constraint.
+;  Constraint implementations currently use this more restrained type.
+;  See `and-foldl` and `update-constraints`.)
+
+; Requirements for type constraints:
+; 1. Must be positive, not negative. not-pairo wouldn't work.
+; 2. Each type must have infinitely many possible values to avoid
+;      incorrectness in combination with disequality constraints,
+;      like: (fresh (x) (booleano x) (=/= x #t) (=/= x #f))
+(define type-constraint
+  (lambda (type-pred type-id)
+    (lambda (u)
+      (lambdag@ (st)
+        (let ((term (walk u (state-s st))))
+          (cond
+            ((type-pred term) st)
+            ((var? term)
+             (let* ((c (lookup-c st term))
+                   (T (c-T c)))
+               (cond
+                 ((eq? T type-id) st)
+                 ((not T) (set-c st term (c-with-T c type-id)))
+                 (else #f))))
+            (else #f)))))))
+
+(define symbolo (type-constraint symbol? 'symbolo))
+(define numbero (type-constraint number? 'numbero))
+
+(define (add-to-D st v d)
+  (let* ((c (lookup-c st v))
+         (c^ (c-with-D c (cons d (c-D c)))))
+    (set-c st v c^)))
+
+(define =/=*
+  (lambda (S+)
+    (lambdag@ (st)
+      (let-values (((S added) (unify* S+ (subst-with-scope
+                                           (state-s st)
+                                           nonlocal-scope))))
+        (cond
+          ((not S) st)
+          ((null? added) #f)
+          (else
+            ; Choose one of the disequality elements (el) to attach
+            ; the constraint to. Only need to choose one because
+            ; all must fail to cause the constraint to fail.
+            (let ((el (car added)))
+              (let ((st (add-to-D st (car el) added)))
+                (if (var? (cdr el))
+                  (add-to-D st (cdr el) added)
+                  st)))))))))
+
+(define =/=
+  (lambda (u v)
+    (=/=* `((,u . ,v)))))
+
+(define absento
+  (lambda (ground-atom term)
+    (unless (or (symbol? ground-atom)
+                (number? ground-atom)
+                (boolean? ground-atom)
+                (null? ground-atom))
+      (error 'absento "first argument to absento must be a ground atom"))
+    (lambdag@ (st)
+      (let ((term (walk term (state-s st))))
+        (cond
+          ((pair? term)
+           (let ((st^ ((absento ground-atom (car term)) st)))
+             (and st^ ((absento ground-atom (cdr term)) st^))))
+          ((eqv? term ground-atom) #f)
+          ((var? term)
+           (let* ((c (lookup-c st term))
+                  (A (c-A c)))
+             (if (memv ground-atom A)
+               st
+               (let ((c^ (c-with-A c (cons ground-atom A))))
+                 (set-c st term c^)))))
+          (else st))))))
+
+; Fold lst with proc and initial value init. If proc ever returns #f,
+; return with #f immediately. Used for applying a series of
+; constraints to a state, failing if any operation fails.
+(define (and-foldl proc init lst)
+  (if (null? lst)
+    init
+    (let ([res (proc (car lst) init)])
+      (and res (and-foldl proc res (cdr lst))))))
+
+
+; Not fully optimized. Could do absento update with fewer
+; hash-refs / hash-sets.
+(define update-constraints
+  (lambda (a st)
+    (let ([old-c (lookup-c st (lhs a))])
+      (if (eq? old-c empty-c)
+        st
+        (let ((st (remove-c (lhs a) st)))
+         (and-foldl (lambda (op st) (op st)) st
+          (append
+            (if (eq? (c-T old-c) 'symbolo)
+              (list (symbolo (rhs a)))
+              '())
+            (if (eq? (c-T old-c) 'numbero)
+              (list (numbero (rhs a)))
+              '())
+            (map (lambda (atom) (absento atom (rhs a))) (c-A old-c))
+            (map (lambda (d) (=/=* d)) (c-D old-c)))))))))
+
 (define (== u v)
   (lambda (ctx)
     (lambda (st)
       (set! unification-count (+ 1 unification-count))
       (let-values
-          (((success? s)
+          (((s added-or-prov)
             (unify u v (state-s st) (prov-from-ctx ctx))))
-        (if success?
-            (extend-assertion-history (state-s-set st s) ctx)
-            (cdcl/conflict s st))))))
+        (if s
+            #;(extend-assertion-history (state-s-set st s) ctx)
+            (and-foldl update-constraints (extend-assertion-history (state-s-set st s) ctx)
+                       added-or-prov)
+            (cdcl/conflict added-or-prov st))))))
 
 ;;; Reification
 
@@ -508,23 +640,8 @@
 
 ; Version of unification without provenance but with extra return of added assocations,
 ; used by the faster-mk reifier for disequalities.
-
-(define unify/reifier
-  (lambda (u v s)
-    (let ((u (walk/reifier u s))
-          (v (walk/reifier v s)))
-      (cond
-        ((eq? u v) (values s '()))
-        ((var? u) (ext-s-check u v s empty-provenance))
-        ((var? v) (ext-s-check v u s empty-provenance))
-        ((and (pair? u) (pair? v))
-         (let-values (((s added-car) (unify/reifier (car u) (car v) s)))
-           (if s
-             (let-values (((s added-cdr) (unify/reifier (cdr u) (cdr v) s)))
-               (values s (append added-car added-cdr)))
-             (values #f #f))))
-        ((equal? u v) (values s '()))
-        (else (values #f #f))))))
+(define (unify/reifier u v S)
+  (unify u v S empty-provenance))
 
 (define unify*
   (lambda (S+ S)
