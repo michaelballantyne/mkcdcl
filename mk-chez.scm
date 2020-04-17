@@ -19,7 +19,7 @@
           fail
           succeed)
 
-  (import (except (rename (chezscheme) [fold-left foldl]) subst))
+  (import (except (chezscheme) subst))
 
   ; Trie implementation, due to Abdulaziz Ghuloum. Used for substitution
   ; and constraint store.
@@ -150,6 +150,14 @@
        (remove-duplicates (cdr l)))
       (else
         (cons (car l) (remove-duplicates (cdr l))))))
+
+  ; different argument order
+  (define (foldl f init seq)
+    (if (null? seq)
+      init
+      (foldl f
+             (f (car seq) init)
+             (cdr seq))))
 
   (define (process/text-ports cmd)
     (open-process-ports cmd 'block (native-transcoder)))

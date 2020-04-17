@@ -61,11 +61,13 @@
   (smt-call+flush-unbuffered (list stmts))
   (set! buffer '()))
 
+(define next-assumption-id 0)
 (define (assumption-id->symbol id)
   (string->symbol (format "_a~a" id)))
 (define (fresh-assumption-id!)
   (set! assumption-count (+ 1 assumption-count))
-  (let ([id (assumption-id->symbol assumption-count)])
+  (set! next-assumption-id (+ 1 next-assumption-id))
+  (let ([id (assumption-id->symbol next-assumption-id)])
     (smt-call `((declare-const ,id Bool)))
     id))
 

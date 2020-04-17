@@ -5,6 +5,9 @@
          fresh
          conde
 
+         succeed
+         fail
+
          use-set-var-val!-optimization
          log-stats
          check-every
@@ -41,6 +44,19 @@
 (define hashtable-ref hash-ref)
 (define hashtable-set! hash-set!)
 (define hashtable-contains? hash-has-key?)
+
+(define (remp f l) (filter-not f l))
+(define (exists f l) (ormap f l))
+(define (list-sort f l) (sort l f))
+(define (call-with-string-output-port f)
+  (define p (open-output-string))
+  (f p)
+  (get-output-string p))
+(define (find f l)
+  (cond [(memf f l) => car] [else #f]))
+(define for-all andmap)
+
+
 
 
 ;(include "smt.scm")
