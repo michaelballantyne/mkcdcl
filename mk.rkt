@@ -2,6 +2,10 @@
 
 (provide run run*
          ==
+         symbolo
+         numbero
+         =/=
+         absento
          fresh
          conde
 

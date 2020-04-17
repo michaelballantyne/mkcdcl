@@ -187,7 +187,7 @@
   (lambda (st v c)
     (state-cs-set
       st
-      (intmap-set (state-cs st) (var-idx var) c))))
+      (intmap-set (state-cs st) (var-idx v) c))))
 
 (define lookup-c
   (lambda (st v)
@@ -198,7 +198,7 @@
 ; I implement remove by setting the value to the empty constraint record.
 (define remove-c
   (lambda (v st)
-    (state-cs-set st (intmap-set (state-cs st) (var-idx var) empty-c))))
+    (state-cs-set st (intmap-set (state-cs st) (var-idx v) empty-c))))
 
 
 ;; AssertionHistory: (listof AssumptionVariableId)
@@ -388,7 +388,7 @@
                    (values s (append added-or-p-car added-or-p-cdr))
                    (values s added-or-p-cdr)))
                (values #f added-or-p-car))))
-          ((equal? u v) (values #t s))
+          ((equal? u v) (values s '()))
           (else (values #f p)))))))
 
 ;(define ext-s-check
@@ -441,18 +441,19 @@
 (define type-constraint
   (lambda (type-pred type-id)
     (lambda (u)
-      (lambdag@ (st)
-        (let ((term (walk u (state-s st))))
-          (cond
-            ((type-pred term) st)
-            ((var? term)
-             (let* ((c (lookup-c st term))
-                   (T (c-T c)))
-               (cond
-                 ((eq? T type-id) st)
-                 ((not T) (set-c st term (c-with-T c type-id)))
-                 (else #f))))
-            (else #f)))))))
+      (lambda (ctx)
+        (lambdag@ (st)
+          (let-values (((term TODO) (walk u (state-s st))))
+            (cond
+              ((type-pred term) st)
+              ((var? term)
+               (let* ((c (lookup-c st term))
+                     (T (c-T c)))
+                 (cond
+                   ((eq? T type-id) st)
+                   ((not T) (set-c st term (c-with-T c type-id)))
+                   (else #f))))
+              (else #f))))))))
 
 (define symbolo (type-constraint symbol? 'symbolo))
 (define numbero (type-constraint number? 'numbero))
@@ -464,22 +465,23 @@
 
 (define =/=*
   (lambda (S+)
-    (lambdag@ (st)
-      (let-values (((S added) (unify* S+ (subst-with-scope
-                                           (state-s st)
-                                           nonlocal-scope))))
-        (cond
-          ((not S) st)
-          ((null? added) #f)
-          (else
-            ; Choose one of the disequality elements (el) to attach
-            ; the constraint to. Only need to choose one because
-            ; all must fail to cause the constraint to fail.
-            (let ((el (car added)))
-              (let ((st (add-to-D st (car el) added)))
-                (if (var? (cdr el))
-                  (add-to-D st (cdr el) added)
-                  st)))))))))
+    (lambda (ctx)
+      (lambdag@ (st)
+        (let-values (((S added) (unify* S+ (subst-with-scope
+                                             (state-s st)
+                                             nonlocal-scope))))
+          (cond
+            ((not S) st)
+            ((null? added) #f)
+            (else
+              ; Choose one of the disequality elements (el) to attach
+              ; the constraint to. Only need to choose one because
+              ; all must fail to cause the constraint to fail.
+              (let ((el (car added)))
+                (let ((st (add-to-D st (car el) added)))
+                  (if (var? (cdr el))
+                    (add-to-D st (cdr el) added)
+                    st))))))))))
 
 (define =/=
   (lambda (u v)
@@ -492,21 +494,22 @@
                 (boolean? ground-atom)
                 (null? ground-atom))
       (error 'absento "first argument to absento must be a ground atom"))
-    (lambdag@ (st)
-      (let ((term (walk term (state-s st))))
-        (cond
-          ((pair? term)
-           (let ((st^ ((absento ground-atom (car term)) st)))
-             (and st^ ((absento ground-atom (cdr term)) st^))))
-          ((eqv? term ground-atom) #f)
-          ((var? term)
-           (let* ((c (lookup-c st term))
-                  (A (c-A c)))
-             (if (memv ground-atom A)
-               st
-               (let ((c^ (c-with-A c (cons ground-atom A))))
-                 (set-c st term c^)))))
-          (else st))))))
+    (lambda (ctx)
+      (lambdag@ (st)
+        (let-values (((term TODO) (walk term (state-s st))))
+          (cond
+            ((pair? term)
+             (let ((st^ (((absento ground-atom (car term)) ctx) st)))
+               (and st^ (((absento ground-atom (cdr term)) ctx) st^))))
+            ((eqv? term ground-atom) #f)
+            ((var? term)
+             (let* ((c (lookup-c st term))
+                    (A (c-A c)))
+               (if (memv ground-atom A)
+                 st
+                 (let ((c^ (c-with-A c (cons ground-atom A))))
+                   (set-c st term c^)))))
+            (else st)))))))
 
 ; Fold lst with proc and initial value init. If proc ever returns #f,
 ; return with #f immediately. Used for applying a series of
@@ -521,21 +524,22 @@
 ; Not fully optimized. Could do absento update with fewer
 ; hash-refs / hash-sets.
 (define update-constraints
-  (lambda (a st)
-    (let ([old-c (lookup-c st (lhs a))])
-      (if (eq? old-c empty-c)
-        st
-        (let ((st (remove-c (lhs a) st)))
-         (and-foldl (lambda (op st) (op st)) st
-          (append
-            (if (eq? (c-T old-c) 'symbolo)
-              (list (symbolo (rhs a)))
-              '())
-            (if (eq? (c-T old-c) 'numbero)
-              (list (numbero (rhs a)))
-              '())
-            (map (lambda (atom) (absento atom (rhs a))) (c-A old-c))
-            (map (lambda (d) (=/=* d)) (c-D old-c)))))))))
+  (lambda (ctx)
+    (lambda (a st)
+      (let ([old-c (lookup-c st (lhs a))])
+        (if (eq? old-c empty-c)
+          st
+          (let ((st (remove-c (lhs a) st)))
+           (and-foldl (lambda (op st) ((op ctx) st)) st
+            (append
+              (if (eq? (c-T old-c) 'symbolo)
+                (list (symbolo (rhs a)))
+                '())
+              (if (eq? (c-T old-c) 'numbero)
+                (list (numbero (rhs a)))
+                '())
+              (map (lambda (atom) (absento atom (rhs a))) (c-A old-c))
+              (map (lambda (d) (=/=* d)) (c-D old-c))))))))))
 
 (define (== u v)
   (lambda (ctx)
@@ -546,16 +550,27 @@
             (unify u v (state-s st) (prov-from-ctx ctx))))
         (if s
             #;(extend-assertion-history (state-s-set st s) ctx)
-            (and-foldl update-constraints (extend-assertion-history (state-s-set st s) ctx)
+            (and-foldl (update-constraints ctx) (extend-assertion-history (state-s-set st s) ctx)
                        added-or-prov)
             (cdcl/conflict added-or-prov st))))))
 
 ;;; Reification
 
-; faster-mk
+
+(define lhs car)
+(define rhs cdr)
 
 (define (walk/reifier v S)
   (let-values (((res prov) (walk v S))) res))
+
+; Version of unification without provenance but with extra return of added assocations,
+; used by the faster-mk reifier for disequalities.
+(define (unify/reifier u v S)
+  (unify u v S empty-provenance))
+
+(define unify*
+  (lambda (S+ S)
+    (unify/reifier (map lhs S+) (map rhs S+) S)))
 
 (define walk*
   (lambda (v S)
@@ -609,43 +624,33 @@
 (define reify
   (lambda (x)
     (lambda (st)
-      (let ((c (c-from-st st x)))
-        (let ((c (cycle c)))
-          (let* ((S (c->S c))
-                 (D (walk* (c->D c) S))
-                 (Y (walk* (c->Y c) S))
-                 (N (walk* (c->N c) S))
-                 (T (walk* (c->T c) S)))
-            (let ((v (walk* x S)))
-              (let ((R (reify-S v (subst empty-subst-map
-                                         nonlocal-scope))))
-                (reify+ v R
-                        (let ((D (remp
-                                   (lambda (d)
-                                     (let ((dw (walk* d S)))
-                                       (anyvar? dw R)))
-                                   (rem-xx-from-d c))))
-                          (rem-subsumed D))
-                        (remp
-                          (lambda (y) (var? (walk/reifier y R)))
-                          Y)
-                        (remp
-                          (lambda (n) (var? (walk/reifier n R)))
-                          N)
-                        (remp (lambda (t)
-                                (anyvar? t R)) T))))))))))
+      (let ((st (state-with-scope st nonlocal-scope)))
+        (let ((c (c-from-st st x)))
+          (let ((c (cycle c)))
+            (let* ((S (c->S c))
+                   (D (walk* (c->D c) S))
+                   (Y (walk* (c->Y c) S))
+                   (N (walk* (c->N c) S))
+                   (T (walk* (c->T c) S)))
+              (let ((v (walk* x S)))
+                (let ((R (reify-S v (subst empty-subst-map
+                                           nonlocal-scope))))
 
-(define lhs car)
-(define rhs cdr)
-
-; Version of unification without provenance but with extra return of added assocations,
-; used by the faster-mk reifier for disequalities.
-(define (unify/reifier u v S)
-  (unify u v S empty-provenance))
-
-(define unify*
-  (lambda (S+ S)
-    (unify/reifier (map lhs S+) (map rhs S+) S)))
+                  (reify+ v R
+                          (let ((D (remp
+                                     (lambda (d)
+                                       (let ((dw (walk* d S)))
+                                         (anyvar? dw R)))
+                                     (rem-xx-from-d c))))
+                            (rem-subsumed D))
+                          (remp
+                            (lambda (y) (var? (walk/reifier y R)))
+                            Y)
+                          (remp
+                            (lambda (n) (var? (walk/reifier n R)))
+                            N)
+                          (remp (lambda (t)
+                                  (anyvar? t R)) T)))))))))))
 
 
 ; Bits from the old constraint implementation, still used for
@@ -992,8 +997,8 @@
 (define term=?
   (lambda (u t S)
     (let-values (((S added) (unify/reifier u t (subst-with-scope
-                                                 S
-                                                 nonlocal-scope))))
+                                         S
+                                         nonlocal-scope))))
       (and S (null? added)))))
 
 (define ground-non-<type>?
@@ -1180,7 +1185,6 @@
       ,drop-N-b/c-dup-var ,drop-D-b/c-Y-or-N ,drop-T-b/c-Y-and-N
       ,move-T-to-D-b/c-t2-atom ,split-t-move-to-d-b/c-pair
       ,drop-from-D-b/c-T ,drop-t-b/c-t2-occurs-t1)))
-
 
 
 ; simple-mk

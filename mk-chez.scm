@@ -1,7 +1,13 @@
 (library
   (mk-chez)
   (export run run*
+
           ==
+          symbolo
+          numbero
+          =/=
+          absento
+
           fresh conde
 
           use-set-var-val!-optimization
