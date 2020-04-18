@@ -27,6 +27,7 @@
          racket/set
          racket/include
          racket/system
+         (only-in srfi/1 lset-union)
          (only-in rnrs/base-6 assert)
          (only-in mzlib/compat define-structure))
 
@@ -62,7 +63,7 @@
 (define for-all andmap)
 
 
-
+(define lset-union-equal? set-union)
 
 ;(include "smt.scm")
 

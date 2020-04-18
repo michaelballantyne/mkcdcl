@@ -293,11 +293,15 @@
         (values l r)))))
 
 ; Provenance: (listof AssumptionVariableId)
-(define empty-provenance (set))
-(define (prov-from-ctx ctx) (set (ctx->assertion-var ctx)))
-(define provenance-union set-union)
-(define (provenance-length p) (set-count p))
-(define (provenance->list p) (set->list p))
+(define empty-provenance '())
+(define (prov-from-ctx ctx) (list (ctx->assertion-var ctx)))
+(define provenance-union lset-union-equal?)
+(define (provenance-length p) (length p))
+(define (provenance->list p) p)
+
+; 88576 with lists
+; 83956 with sets
+
 
 ; Statistics counters
 (define unification-count 0)
