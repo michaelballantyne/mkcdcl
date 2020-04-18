@@ -150,3 +150,16 @@
       (anyo z)
       (many1o y 1000)))
   '())
+
+; Ah! It's okay because when a unification fails due to conflict with a symbolo
+;   constraint, we don't record a nogood set.
+(test "cdcl-soundness-symbolo"
+  (parameterize (#;[debug-soundness #t]
+                 [check-every 1])
+    (run* (q)
+        (conde
+          [(symbolo q)]
+          [(numbero q)])
+        (== q 1)
+        ))
+  '(1))
