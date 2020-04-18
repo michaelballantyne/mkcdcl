@@ -24,6 +24,7 @@
          scheme-eval)
 
 (require racket/list
+         racket/set
          racket/include
          racket/system
          (only-in rnrs/base-6 assert)

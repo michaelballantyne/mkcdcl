@@ -293,9 +293,11 @@
         (values l r)))))
 
 ; Provenance: (listof AssumptionVariableId)
-(define empty-provenance '())
-(define (prov-from-ctx ctx) (list (ctx->assertion-var ctx)))
-(define provenance-union append)
+(define empty-provenance (set))
+(define (prov-from-ctx ctx) (set (ctx->assertion-var ctx)))
+(define provenance-union set-union)
+(define (provenance-length p) (set-count p))
+(define (provenance->list p) (set->list p))
 
 ; Statistics counters
 (define unification-count 0)
@@ -325,7 +327,7 @@
 
 (define (cdcl/conflict prov st)
   ;; OK to be ephemeral, only boost
-  (sat/not-all prov)
+  (sat/not-all (provenance->list prov))
   #f)
 
 (define check
