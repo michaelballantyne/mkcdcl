@@ -71,7 +71,7 @@
     (smt-call `((declare-const ,id Bool)))
     id))
 
-(define (sat/constraint type v1 v2 v3)
+(define (sat/constraint! type v1 v2 v3)
   (smt-call (list `(assert (= ,v1 (,type ,v2 ,v3))))))
 
 (define (check-sat-assuming vars)

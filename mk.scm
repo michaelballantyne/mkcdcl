@@ -289,7 +289,7 @@
         (let ((v1 (ctx->assertion-var ctx))
               (v2 (ctx->assertion-var l))
               (v3 (ctx->assertion-var r)))
-          (sat/constraint type v1 v2 v3))
+          (sat/constraint! type v1 v2 v3))
         (values l r)))))
 
 ; Provenance: (listof AssumptionVariableId)
@@ -396,12 +396,6 @@
                (values #f added-or-p-car))))
           ((equal? u v) (values s '()))
           (else (values #f p)))))))
-
-;(define ext-s-check
-  ;(lambda (x v S)
-    ;(cond
-      ;((occurs-check x v S) (values #f #f))
-      ;(else (values (subst-add S x v) `((,x . ,v)))))))
 
 
 (define ext-s-check
@@ -1318,12 +1312,12 @@
 
 ; -> Goal
 (define (conj2 ig1 ig2)
-     (lambda (ctx)
-       (let-values (((ctx1 ctx2) (get-child-assumptions+assert! ctx 'and)))
-         (let ([g1 (ig1 ctx1)] [g2 (ig2 ctx2)])
-           (lambdag@ (st)
-                     (let ([st (check-sometimes (extend-assertion-history st ctx))])
-                       (and st (bind (g1 st) g2))))))))
+  (lambda (ctx)
+    (let-values (((ctx1 ctx2) (get-child-assumptions+assert! ctx 'and)))
+      (let ([g1 (ig1 ctx1)] [g2 (ig2 ctx2)])
+        (lambdag@ (st)
+          (let ([st (check-sometimes (extend-assertion-history st ctx))])
+            (and st (bind (g1 st) g2))))))))
 
 (define-syntax conj*
   (syntax-rules ()

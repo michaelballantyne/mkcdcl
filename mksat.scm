@@ -24,7 +24,7 @@
 ;; =>
 ;; (or (not v1) (not v2) (not v3) ...)
 
-(define (sat/constraint type v1 v2 v3)
+(define (sat/constraint! type v1 v2 v3)
   (cond
    ((eq? 'or type)
     (sat/add-clause! sat-solver (list (sat/neg v1) (sat/pos v2) (sat/pos v3)))
