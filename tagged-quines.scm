@@ -94,9 +94,10 @@
          (ev (cons `(,x0 ,v2) e0) t0 v)))
       ((fresh (t1 t2 c1 c2)
          (== t `(list ,t1 ,t2))
+         (== v `(code ,(list c1 c2)))
          (ev e t1 `(code ,c1))
          (ev e t2 `(code ,c2))
-         (== v `(code ,(list c1 c2))))))))
+         )))))
 
 (define normalize-var-name
   (lambda (n)
@@ -129,7 +130,7 @@
 (define ok
   (lambda (r)
     (assert (not (null? r)))
-    (map pretty-print r)
+    ;(map pretty-print r)
     (length r)))
 
 (define quine
@@ -154,7 +155,6 @@
      (ev '()
          q
          `(code ,q)))))))
-
 (time
 (ok
  (map
@@ -165,7 +165,7 @@
       (assert (equal? (scheme-eval b) a))
       (list a b)))
   (map normalize
-   (run 10 (q)
+   (run 2 (q)
      (fresh (a b)
        (== q `(,a ,b))
        (ev '() a `(code ,b))
