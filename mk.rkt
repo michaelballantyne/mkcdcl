@@ -18,6 +18,7 @@
          should-check-p
          debug-soundness
          always-wrap-reified?
+         debug-constraints
 
          hard-reset!
 

@@ -1,3 +1,5 @@
+(define debug-constraints (make-parameter #f))
+
 (define sat-solver #f)
 
 (define (sat/hard-reset!)
@@ -25,6 +27,8 @@
 ;; (or (not v1) (not v2) (not v3) ...)
 
 (define (sat/constraint! type v1 v2 v3)
+  (when (debug-constraints)
+    (printf "sat/constraint! type: ~a v1: ~a v2: ~a v3: ~a\n" type v1 v2 v3))
   (cond
    ((eq? 'or type)
     (sat/add-clause! sat-solver (list (sat/neg v1) (sat/pos v2) (sat/pos v3)))
@@ -39,6 +43,8 @@
    (else (error 'sat/constraint "unknown type" type))))
 
 (define (check-sat-assuming vars)
+  (when (debug-constraints)
+    (printf "check-sat-assuming ~a\n" vars))
   (let ([res (sat/check-sat-assuming sat-solver (map sat/pos vars))])
     (if res
       (set! unknown-count (+ 1 unknown-count))
@@ -46,6 +52,8 @@
     res))
 
 (define (sat/not-all prov)
+  (when (debug-constraints)
+    (printf "sat/not-all ~a\n" prov))
   (sat/add-clause! sat-solver (map sat/neg prov)))
 
 (define (sat/log-stats!)
