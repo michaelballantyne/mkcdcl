@@ -73,7 +73,6 @@
     (sym _.0 _.1)
     (absento (closure _.2)))))
 
-#|
  (test "3 quines"
    (run 3 (q) (eval-expo q '() q))
    '((((lambda (_.0) (list _.0 (list 'quote _.0)))
@@ -205,6 +204,7 @@
          ((_.0 quote)) ((_.1 closure)) ((_.1 list)) ((_.1 quote)))
     (sym _.0 _.1))))
 
+#|
  (test "40 quines"
    (run 40 (q) (eval-expo q '() q))
    '((((lambda (_.0) (list _.0 (list 'quote _.0)))
@@ -579,7 +579,6 @@
    (absento (closure _.3)))))
 |#
 
-#|
 (test "2 twines"
   (run 2 (x) (fresh (p q)
 	       (=/= p q)
@@ -614,6 +613,7 @@
     (sym _.0 _.1)
     (absento (closure _.2)))))
 
+#|
 (test "4 thrines"
   (run 4 (x)
     (fresh (p q r)
