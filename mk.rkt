@@ -17,11 +17,11 @@
          check-every
          should-check-p
          debug-soundness
+         always-wrap-reified?
 
          hard-reset!
 
          cutoff-counts
-         conflict-sets
 
          assert
          scheme-eval)
@@ -30,8 +30,8 @@
          racket/set
          racket/include
          racket/system
-         (rename-in racket/set [set-union lset-union])
-         ;(only-in srfi/1 lset-union)
+         ;(rename-in racket/set [set-union lset-union])
+         (only-in srfi/1 lset-union)
          (only-in rnrs/base-6 assert)
          (only-in mzlib/compat define-structure))
 
@@ -65,9 +65,6 @@
 (define (find f l)
   (cond [(memf f l) => car] [else #f]))
 (define for-all andmap)
-
-
-(define lset-union-equal? set-union)
 
 ;(include "smt.scm")
 
