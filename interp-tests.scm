@@ -1,5 +1,15 @@
 (always-wrap-reified? #t)
 
+; If we have a conjunction of a nonterminating computation
+; and an evalo call that would fail on its own, then we'd like
+; CDCL to ensure that the overall query fails. If we are able to
+; implement CDCL for all constraints soundly and precisely, this
+; should be the case. These tests test various examples with evalo.
+
+; Right now we don't do CDCL for disequality or absento, so only
+; the most trivial examples with literals or unbound variables
+; work.
+
 (define one-of?
   (lambda (expected*)
     (lambda (produced)
