@@ -55,6 +55,3 @@
          (if (null? lists) lis
            (foldl (lambda (lis2 lis1) (lset-union-2 = lis1 lis2))
                   lis lists)))))))
-
-(define (lset-union-equal? . args)
-  (apply lset-union equal? args))

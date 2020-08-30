@@ -1,5 +1,5 @@
 (define log-stats (make-parameter #f))
-(define check-every (make-parameter 15))
+(define check-every (make-parameter 8))
 (define should-check-p
   (make-parameter
     (lambda (cnt)
@@ -66,7 +66,7 @@
 ; Provenance: (listof AssumptionVariableId)
 (define empty-provenance '())
 (define (prov-from-ctx ctx) (list (ctx->assertion-var ctx)))
-(define provenance-union lset-union-equal?)
+(define (provenance-union a b) (lset-union eq? a b))
 (define (provenance-length p) (length p))
 (define (provenance->list p) p)
 

@@ -210,7 +210,7 @@
 (define (unify u v s new-prov)
   (let-values (((u u-prov) (walk u s))
                ((v v-prov) (walk v s)))
-    (let ((p (provenance-union new-prov u-prov v-prov))) ;; TODO, not always needed
+    (let ((p (provenance-union new-prov (provenance-union u-prov v-prov)))) ;; TODO, not always needed
       (cond
         ((eq? u v) (values s '()))
         ((and (var? u) (var? v))
@@ -245,6 +245,21 @@
 
 ; Var, Term, Substitution, ProvenanceSet -> Boolean, (or ProvenanceSet void)
 (define (occurs-check x v S prov)
+  (if (occurs-check/no-prov x v S)
+    (occurs-check/prov x v S prov)
+    (values #f (void))))
+
+(define (occurs-check/no-prov x v S)
+  (let-values (((v ignore) (walk v S)))
+    (cond
+      ((var? v)
+       (var-eq? v x))
+      ((pair? v)
+       (or (occurs-check/no-prov x (car v) S)
+           (occurs-check/no-prov x (cdr v) S)))
+      (else #f))))
+
+(define (occurs-check/prov x v S prov)
   (let-values (((v v-prov) (walk v S)))
     (let ([p (provenance-union v-prov prov)])
       (cond
@@ -254,10 +269,10 @@
            (values #f (void))))
         ((pair? v)
          (let-values (((occurs? res-prov)
-                       (occurs-check x (car v) S p)))
+                       (occurs-check/prov x (car v) S p)))
            (if occurs?
              (values #t res-prov)
-             (occurs-check x (cdr v) S p))))
+             (occurs-check/prov x (cdr v) S p))))
         (else (values #f (void)))))))
 
 ; Var, Term, Substitution -> UnificationResult
@@ -338,8 +353,7 @@
     (let-values (((ctx1 ctx2) (get-child-assumptions+assert! ctx 'and)))
       (let ([g1 (ig1 ctx1)] [g2 (ig2 ctx2)])
         (lambda (st)
-          (let ([st (check-sometimes (extend-assertion-history st ctx))])
-            (and st (bind (g1 st) g2))))))))
+          (bind (g1 st) g2))))))
 
 (define-syntax conj*
   (syntax-rules ()
@@ -351,14 +365,21 @@
 ; interleave with other branches.
 (define-syntax suspend (syntax-rules () ((_ body) (lambda () body))))
 
+(define (do-check ctx st)
+  (check-sometimes (extend-assertion-history st ctx)))
+
 ; -> Goal
 (define (disj2 ig1 ig2)
   (lambda (ctx)
     (let-values (((ctx1 ctx2) (get-child-assumptions+assert! ctx 'or)))
       (let ([g1 (ig1 ctx1)] [g2 (ig2 ctx2)])
         (lambda (st)
-                  (let ([st (check-sometimes (extend-assertion-history st ctx))])
-                    (and st (mplus (g1 st) (suspend (g2 st))))))))))
+          ; TODO: Ideally we should check when first entering a disjunct. Not the disjunction,
+          ;         and not when entering a conjunction
+          ; Because if CDCL knows the tree structure, it only gets new info when we assert
+          ;  we're in a particular branch of a disjunction. In a conjunction, it already knows
+          ;  those other vars must be true.
+          (and st (mplus (bind (do-check ctx1 st) g1) (suspend (bind (do-check ctx2 st) g2)))))))))
 
 (define-syntax disj*
   (syntax-rules ()
@@ -403,7 +424,7 @@
                 (take n
                       (suspend
                        (((conj* ig0 ig ... purge) ctx)
-                        empty-state))))))))
+                        (extend-assertion-history empty-state ctx)))))))))
     ((_ n (q0 q1 q ...) g0 g ...)
      (run n (x)
        (fresh (q0 q1 q ...)
@@ -558,7 +579,7 @@
           (((s added-or-prov)
             (unify u v (state-S st) (prov-from-ctx ctx))))
         (if s
-            (and-foldl (update-constraints ctx) (extend-assertion-history (state-with-S st s) ctx)
+            (and-foldl (update-constraints ctx) (state-with-S st s)
                        added-or-prov)
             (cdcl/conflict added-or-prov st))))))
 
