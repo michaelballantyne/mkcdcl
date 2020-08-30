@@ -1,3 +1,12 @@
+(load "minisat-chez.scm")
+(load "minisat.scm")
+(load "mksat.scm")
+(load "mk/mk-vicare.scm")
+(load "mkcdcl-chez.scm")
+(load "mkcdcl.scm")
+(load "mk/mk-vicare.scm")
+(load "mk/mk.scm")
+
 (check-every 1)
 (debug-soundness #t)
 
