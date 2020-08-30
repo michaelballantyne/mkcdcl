@@ -138,6 +138,7 @@
 (define (soft-reset!)
   (set! unification-count 0)
   (set! assumption-count 0)
+  (set! cutoff-counts (make-eq-hashtable))
   (reset-sat-counts!)
 
   (sat/soft-reset!))
