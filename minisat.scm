@@ -68,3 +68,4 @@
 (define (sat/get-propagations s)
   (check-minisat-solver s 'sat/get-propagations)
   (minisat_num_propagations (minisat-solver-ptr s)))
+

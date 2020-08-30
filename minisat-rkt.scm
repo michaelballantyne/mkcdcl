@@ -23,3 +23,6 @@
 (define-minisat minisat_num_decisions (_fun _pointer -> _int))
 (define-minisat minisat_num_conflicts (_fun _pointer -> _int))
 (define-minisat minisat_num_propagations (_fun _pointer -> _int))
+
+(define-minisat minisat_conflict_len (_fun _pointer -> _int))
+(define-minisat minisat_conflict_nthLit (_fun _pointer _int -> _int))

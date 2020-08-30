@@ -53,3 +53,11 @@
   (printf "conflicts: ~a\n" (sat/get-conflicts sat-solver))
   (printf "propagations: ~a\n" (sat/get-propagations sat-solver))
   )
+(define (sat/get-conflict)
+  (let ((len (minisat_conflict_len (minisat-solver-ptr sat-solver))))
+    (let loop ((acc '())
+               (i (- len 1)))
+      (if (< i 0)
+        acc
+        (loop (cons (minisat_conflict_nthLit (minisat-solver-ptr sat-solver) i) acc)
+              (- i 1))))))
