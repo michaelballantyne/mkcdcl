@@ -439,23 +439,36 @@
 (define type-constraint-reified cadr)
 (define type-constraint-ordering caddr)
 
+(define (push-type-constraint-along-path tc u st prov)
+  (define (push-more st^)
+    (let ((val (subst-lookup u (state-S st^))))
+      (if (unbound? val)
+        st^
+        (push-type-constraint-along-path
+          tc
+          (assoc-term val)
+          st^
+          (provenance-union (assoc-prov val) prov)))))
+  (let ((type-pred (type-constraint-predicate tc)))
+    (if (var? u)
+      (let* ((c (lookup-c st u))
+             (T (c-T c)))
+        (cond
+          ((not T)
+           (push-more (set-c st u (c-with-T c (cons tc prov)))))
+          ((eq? (assoc-term T) tc)
+           (push-more st))
+          (else (cdcl/conflict (provenance-union prov (assoc-prov T)) st))))
+      (if (type-pred u)
+        st
+        (cdcl/conflict prov st)))))
+
 ; TypeConstraint -> (Term -> Goal)
 (define (apply-type-constraint tc)
   (lambda (u)
     (lambda (ctx)
       (lambda (st)
-        (let ((type-pred (type-constraint-predicate tc)))
-          (let-values (((term TODO) (walk u (state-S st))))
-            (cond
-              ((type-pred term) st)
-              ((var? term)
-               (let* ((c (lookup-c st term))
-                      (T (c-T c)))
-                 (cond
-                   ((eq? T tc) st)
-                   ((not T) (set-c st term (c-with-T c tc)))
-                   (else #f))))
-              (else #f))))))))
+        (push-type-constraint-along-path tc u st (prov-from-ctx ctx))))))
 
 (define-syntax declare-type-constraints
   (syntax-rules ()
@@ -559,7 +572,13 @@
          (and-foldl (lambda (op st) ((op ctx) st)) st
           (append
             (if (c-T old-c)
-              (list ((apply-type-constraint (c-T old-c)) (rhs a)))
+              (list (lambda (ctx)
+                      (lambda (st)
+                        (push-type-constraint-along-path
+                          (assoc-term (c-T old-c))
+                          (lhs a)
+                          st
+                          (assoc-prov (c-T old-c))))))
               '())
             (map (lambda (atom) (absento atom (rhs a))) (c-A old-c))
             (map =/=* (c-D old-c)))))))))
@@ -620,7 +639,7 @@
                    (cons (type-constraint-reified tc-type)
                          (filter-map (lambda (x)
                                        (let ((tc (c-T (lookup-c st x))))
-                                         (and (eq? tc tc-type)
+                                         (and tc (eq? (assoc-term tc) tc-type)
                                               x)))
                                      relevant-vars)))
                  type-constraints))
@@ -709,7 +728,11 @@
         ((type-constraint-predicate (var-type t1 st))
          t2))))
 
-(define (var-type x st) (or (c-T (lookup-c st x)) unbound))
+(define (var-type x st)
+  (let ((T (c-T (lookup-c st x))))
+    (if T
+      (assoc-term T)
+      unbound)))
 
 (define (absento->diseq t) (list t))
 

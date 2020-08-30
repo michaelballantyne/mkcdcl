@@ -1,3 +1,6 @@
+(check-every 1)
+(debug-soundness #t)
+
 (load "test-check.scm")
 
 (printf "==-tests\n")
