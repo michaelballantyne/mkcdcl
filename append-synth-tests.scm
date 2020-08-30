@@ -6,7 +6,6 @@
       (not (not (member produced expected*))))))
 
 
-#|
 (time-test "1"
  (run* (q)
           (evalo
@@ -55,7 +54,6 @@
                        (append '(a b c) '(d e))))
                   '((a b c d e))))
            '((s)))
-|#
 
 (time-test "5"
            (run 1 (q)
