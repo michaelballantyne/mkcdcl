@@ -553,6 +553,7 @@
 (define (== u v)
   (lambda (ctx)
     (lambda (st)
+      (set! unification-count (+ 1 unification-count))
       (let-values
           (((s added-or-prov)
             (unify u v (state-S st) (prov-from-ctx ctx))))

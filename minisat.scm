@@ -58,7 +58,13 @@
     (minisat_solve_commit sp)))
 
 (define (sat/get-decisions s)
-  (check-minisat-solver s 'sat/check-sat-assuming)
+  (check-minisat-solver s 'sat/get-decisions)
   (minisat_num_decisions (minisat-solver-ptr s)))
 
+(define (sat/get-conflicts s)
+  (check-minisat-solver s 'sat/get-conflicts)
+  (minisat_num_conflicts (minisat-solver-ptr s)))
 
+(define (sat/get-propagations s)
+  (check-minisat-solver s 'sat/get-propagations)
+  (minisat_num_propagations (minisat-solver-ptr s)))

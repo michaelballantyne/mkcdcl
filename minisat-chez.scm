@@ -19,3 +19,5 @@
 (define minisat_delete (foreign-procedure "minisat_delete" (uptr) void))
 
 (define minisat_num_decisions (foreign-procedure "minisat_num_decisions" (uptr) int))
+(define minisat_num_conflicts (foreign-procedure "minisat_num_conflicts" (uptr) int))
+(define minisat_num_propagations (foreign-procedure "minisat_num_propagations" (uptr) int))

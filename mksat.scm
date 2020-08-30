@@ -49,4 +49,7 @@
   (sat/add-clause! sat-solver (map sat/neg prov)))
 
 (define (sat/log-stats!)
-  (printf "decisions: ~a\n" (sat/get-decisions sat-solver)))
+  (printf "decisions: ~a\n" (sat/get-decisions sat-solver))
+  (printf "conflicts: ~a\n" (sat/get-conflicts sat-solver))
+  (printf "propagations: ~a\n" (sat/get-propagations sat-solver))
+  )

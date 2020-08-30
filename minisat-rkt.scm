@@ -21,3 +21,5 @@
 (define-minisat minisat_delete (_fun _pointer -> _void))
 
 (define-minisat minisat_num_decisions (_fun _pointer -> _int))
+(define-minisat minisat_num_conflicts (_fun _pointer -> _int))
+(define-minisat minisat_num_propagations (_fun _pointer -> _int))
