@@ -108,7 +108,7 @@
           (assert (symbol? n))
           n))))
 
-(define unbound?
+(define var-unbound?
   (lambda (x)
     (and (symbol? x)
          (let ((s (symbol->string x)))
@@ -124,7 +124,7 @@
             (map normalize t))
         (begin
           (assert (not (eq? 'vr t)))
-          (if (unbound? t) `(quote ,t) t)))))
+          (if (var-unbound? t) `(quote ,t) t)))))
 
 (define ok
   (lambda (r)

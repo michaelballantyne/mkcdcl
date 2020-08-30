@@ -1,4 +1,5 @@
 (define always-wrap-reified? (make-parameter #f))
+(define use-set-var-val!-optimization (make-parameter #t))
 
 ; Scope object.
 ; Used to determine whether a branch has occured between variable
@@ -87,15 +88,16 @@
 
 (define empty-subst (subst empty-subst-map (new-scope)))
 
-(define (subst-add S x v)
-  ; set-var-val! optimization: set the value directly on the
-  ; variable object if we haven't branched since its creation
-  ; (the scope of the variable and the substitution are the same).
-  ; Otherwise extend the substitution mapping.
-  (if (scope-eq? (var-scope x) (subst-scope S))
-    (begin (set-var-val! x v)
-           S)
-    (subst (subst-map-add (subst-map S) x v) (subst-scope S))))
+(define (subst-add S x v p)
+  (let ([s-v (cons v p)])
+    ; set-var-val! optimization: set the value directly on the
+    ; variable object if we haven't branched since its creation
+    ; (the scope of the variable and the substitution are the same).
+    ; Otherwise extend the substitution mapping.
+    (if (and (use-set-var-val!-optimization) (scope-eq? (var-scope x) (subst-scope S)))
+      (begin (set-var-val! x s-v)
+             S)
+      (subst (subst-map-add (subst-map S) x s-v) (subst-scope S)))))
 
 (define (subst-lookup x S)
   ; set-var-val! optimization.
@@ -170,79 +172,105 @@
 ;   S - the substitution
 ;   C - the constraint store
 
-(define (state S C) (cons S C))
+(define (state ct S C ah) (list ct S C ah))
 
-(define (state-S st) (car st))
-(define (state-C st) (cdr st))
+(define (state-counter st) (car st))
+(define (state-S st) (cadr st))
+(define (state-C st) (caddr st))
+(define (state-assertion-history st) (cadddr st))
 
-(define empty-state (state empty-subst empty-C))
+(define empty-state (state 0 empty-subst empty-C empty-assertion-history))
+
+(define (state-with-counter st c)
+  (cons c (cdr st)))
 
 (define (state-with-C st C^)
-  (state (state-S st) C^))
+  (state (state-counter st) (state-S st) C^ (state-assertion-history st)))
 
-(define state-with-scope
-  (lambda (st new-scope)
-    (state (subst-with-scope (state-S st) new-scope) (state-C st))))
+(define (state-with-S st S^)
+  (state (state-counter st) S^ (state-C st) (state-assertion-history st)))
+
+(define (state-with-assertion-history st ah^)
+  (state (state-counter st) (state-S st) (state-C st) ah^))
+
+(define (state-with-scope st new-scope)
+  (state (state-counter st)
+         (subst-with-scope (state-S st) new-scope)
+         (state-C st)
+         (state-assertion-history st)))
 
 ; Unification
 
 ; UnificationResult: (or/c (values Substitution (Listof Association))
-;                          (values #f #f)
+;                          (values #f Provenance)
 ; An extended substitution and a list of associations added during the unification,
-;  or (values #f #f) indicating unification failed.
+;  or (values #f Provenance) indicating unification failed.
 
 ; Term, Term, Substitution -> UnificationResult
-(define (unify u v s)
-  (let ((u (walk u s))
-        (v (walk v s)))
-    (cond
-      ((eq? u v) (values s '()))
-      ((and (var? u) (var? v))
-       (if (> (var-idx u) (var-idx v))
-         (ext-s-check u v s)
-         (ext-s-check v u s)))
-      ((var? u) (ext-s-check u v s))
-      ((var? v) (ext-s-check v u s))
-      ((and (pair? u) (pair? v))
-       (let-values (((s added-car) (unify (car u) (car v) s)))
-         (if s
-           (let-values (((s added-cdr) (unify (cdr u) (cdr v) s)))
-             ; Right now appends the list of added values from sub-unifications.
-             ; Alternatively could be threaded monadically, which could be faster
-             ; or slower.
-             (values s (append added-car added-cdr)))
-           (values #f #f))))
-      ((equal? u v) (values s '()))
-      (else (values #f #f)))))
+(define (unify u v s new-prov)
+  (let-values (((u u-prov) (walk u s))
+               ((v v-prov) (walk v s)))
+    (let ((p (provenance-union new-prov u-prov v-prov))) ;; TODO, not always needed
+      (cond
+        ((eq? u v) (values s '()))
+        ((and (var? u) (var? v))
+         (if (> (var-idx u) (var-idx v))
+           (ext-s-check u v s p)
+           (ext-s-check v u s p)))
+        ((var? u) (ext-s-check u v s p))
+        ((var? v) (ext-s-check v u s p))
+        ((and (pair? u) (pair? v))
+         (let-values (((s added-or-p-car)
+                         (unify
+                          (car u) (car v) s p)))
+             (if s
+               (let-values (((s added-or-p-cdr) (unify (cdr u) (cdr v) s p)))
+                 (if s
+                   (values s (append added-or-p-car added-or-p-cdr))
+                   (values s added-or-p-cdr)))
+               (values #f added-or-p-car))))
+        ((equal? u v) (values s '()))
+        (else (values #f p))))))
 
-; Term, Substitution -> Term
+; Term, Substitution -> Term, ProvenanceSet
 (define (walk u S)
   (let rec ((u u))
     (if (var? u)
       (let ((val (subst-lookup u S)))
         (if (unbound? val)
-          u
-          (rec val)))
-      u)))
+          (values u empty-provenance)
+          (let-values (((t prov) (rec (assoc-term val))))
+            (values t (provenance-union (assoc-prov val) prov)))))
+      (values u empty-provenance))))
 
-; Var, Term, Substitution -> Boolean
-(define (occurs-check x v S)
-  (let ((v (walk v S)))
-    (cond
-      ((var? v) (var-eq? v x))
-      ((pair? v)
-       (or (occurs-check x (car v) S)
-           (occurs-check x (cdr v) S)))
-      (else #f))))
+; Var, Term, Substitution, ProvenanceSet -> Boolean, (or ProvenanceSet void)
+(define (occurs-check x v S prov)
+  (let-values (((v v-prov) (walk v S)))
+    (let ([p (provenance-union v-prov prov)])
+      (cond
+        ((var? v)
+         (if (var-eq? v x)
+           (values #t p)
+           (values #f (void))))
+        ((pair? v)
+         (let-values (((occurs? res-prov)
+                       (occurs-check x (car v) S p)))
+           (if occurs?
+             (values #t res-prov)
+             (occurs-check x (cdr v) S p))))
+        (else (values #f (void)))))))
 
 ; Var, Term, Substitution -> UnificationResult
-(define (ext-s-check x v S)
-  (if (occurs-check x v S)
-    (values #f #f)
-    (values (subst-add S x v) (list (cons x v)))))
+(define (ext-s-check x v S prov)
+  (let-values (((occurs? prov^) (occurs-check x v S prov)))
+    (if occurs?
+      (values #f prov^)
+      (values (subst-add S x v prov) (list (cons x v))))))
 
 (define (unify* S+ S)
-  (unify (map lhs S+) (map rhs S+) S))
+  (unify (map lhs S+) (map rhs S+) S
+         empty-provenance ; TODO
+         ))
 
 ; Search
 
@@ -304,56 +332,78 @@
       ((c) (cons c '()))
       ((c f) (cons c (take (and n (- n 1)) f))))))
 
-; (bind* e:SearchStream g:Goal ...) -> SearchStream
-(define-syntax bind*
+; Goal, Goal -> Goal
+(define (conj2 ig1 ig2)
+  (lambda (ctx)
+    (let-values (((ctx1 ctx2) (get-child-assumptions+assert! ctx 'and)))
+      (let ([g1 (ig1 ctx1)] [g2 (ig2 ctx2)])
+        (lambda (st)
+          (let ([st (check-sometimes (extend-assertion-history st ctx))])
+            (and st (bind (g1 st) g2))))))))
+
+(define-syntax conj*
   (syntax-rules ()
-    ((_ e) e)
-    ((_ e g0 g ...) (bind* (bind e g0) g ...))))
+    ((_ ig) ig)
+    ((_ ig0 ig1 ig ...) (conj* (conj2 ig0 ig1) ig ...))))
 
 ; (suspend e:SearchStream) -> SuspendedStream
 ; Used to clearly mark the locations where search is suspended in order to
 ; interleave with other branches.
 (define-syntax suspend (syntax-rules () ((_ body) (lambda () body))))
 
-; (mplus* e:SearchStream ...+) -> SearchStream
-(define-syntax mplus*
+; -> Goal
+(define (disj2 ig1 ig2)
+  (lambda (ctx)
+    (let-values (((ctx1 ctx2) (get-child-assumptions+assert! ctx 'or)))
+      (let ([g1 (ig1 ctx1)] [g2 (ig2 ctx2)])
+        (lambda (st)
+                  (let ([st (check-sometimes (extend-assertion-history st ctx))])
+                    (and st (mplus (g1 st) (suspend (g2 st))))))))))
+
+(define-syntax disj*
   (syntax-rules ()
-    ((_ e) e)
-    ((_ e0 e ...)
-     (mplus e0 (suspend (mplus* e ...))))))
+    ((_ ig) ig)
+    ((_ ig0 ig ...) (disj2 ig0 (disj* ig ...)))))
 
 ; (fresh (x:id ...) g:Goal ...+) -> Goal
 (define-syntax fresh
   (syntax-rules ()
-    ((_ (x ...) g0 g ...)
-     (lambda (st)
-       (suspend
-         (let ((scope (subst-scope (state-S st))))
-           (let ((x (var scope)) ...)
-             (bind* (g0 st) g ...))))))))
+    ((_ (x ...) ig0 ig ...)
+     (lambda (ctx)
+       (lambda (st)
+         (suspend
+           (let ([scope (subst-scope (state-S st))])
+             (let ((x (var scope)) ...)
+               (((conj* ig0 ig ...) ctx) st)))))))))
 
 ; (conde [g:Goal ...] ...+) -> Goal
 (define-syntax conde
   (syntax-rules ()
-    ((_ (g0 g ...) (g1 g^ ...) ...)
-     (lambda (st)
-       (suspend
-         (let ((st (state-with-scope st (new-scope))))
-           (mplus*
-             (bind* (g0 st) g ...)
-             (bind* (g1 st) g^ ...) ...)))))))
+    ((_ (ig0 ig ...) (ig1 ig^ ...) ...)
+     (lambda (ctx)
+       (lambda (st)
+         (suspend
+           (let ((st (state-with-scope st (new-scope))))
+             (((disj*
+                 (conj* ig0 ig ...)
+                 (conj* ig1 ig^ ...) ...)
+               ctx)
+              st))))))))
 
 (define-syntax run
   (syntax-rules ()
-    ((_ n (q) g0 g ...)
-     (take n
-           (suspend
-             ((fresh (q) g0 g ...
-                     (lambda (st)
-                       (let ((st (state-with-scope st nonlocal-scope)))
-                         (let ((z ((reify q) st)))
-                           (cons z (lambda () (lambda () #f)))))))
-              empty-state))))
+    ((_ n (q) ig0 ig ...)
+     (begin
+       (soft-reset!)
+       (let ((ctx (initial-ctx)))
+         ;;TODO: keep? (smt-call (list `(assert ,(ctx->assertion-var ctx))))
+         (let ((q (var (new-scope))))
+           (map (lambda (st)
+                  ((reify q) (state-with-scope st nonlocal-scope)))
+                (take n
+                      (suspend
+                       (((conj* ig0 ig ... purge) ctx)
+                        empty-state))))))))
     ((_ n (q0 q1 q ...) g0 g ...)
      (run n (x)
        (fresh (q0 q1 q ...)
@@ -392,19 +442,20 @@
 ; TypeConstraint -> (Term -> Goal)
 (define (apply-type-constraint tc)
   (lambda (u)
-    (lambda (st)
-      (let ((type-pred (type-constraint-predicate tc)))
-        (let ((term (walk u (state-S st))))
-          (cond
-            ((type-pred term) st)
-            ((var? term)
-             (let* ((c (lookup-c st term))
-                    (T (c-T c)))
-               (cond
-                 ((eq? T tc) st)
-                 ((not T) (set-c st term (c-with-T c tc)))
-                 (else #f))))
-            (else #f)))))))
+    (lambda (ctx)
+      (lambda (st)
+        (let ((type-pred (type-constraint-predicate tc)))
+          (let-values (((term TODO) (walk u (state-S st))))
+            (cond
+              ((type-pred term) st)
+              ((var? term)
+               (let* ((c (lookup-c st term))
+                      (T (c-T c)))
+                 (cond
+                   ((eq? T tc) st)
+                   ((not T) (set-c st term (c-with-T c tc)))
+                   (else #f))))
+              (else #f))))))))
 
 (define-syntax declare-type-constraints
   (syntax-rules ()
@@ -432,22 +483,23 @@
 
 ; (ListOf Association) -> Goal
 (define (=/=* S+)
-  (lambda (st)
-    (let-values (((S added) (unify* S+ (subst-with-scope
-                                         (state-S st)
-                                         nonlocal-scope))))
-      (cond
-        ((not S) st)
-        ((null? added) #f)
-        (else
-          ; Attach the constraint to variables in of the disequality elements
-          ; (el).  We only need to choose one because all elements must fail to
-          ; cause the constraint to fail.
-          (let ((el (car added)))
-            (let ((st (add-to-D st (car el) added)))
-              (if (var? (cdr el))
-                (add-to-D st (cdr el) added)
-                st))))))))
+  (lambda (ctx)
+    (lambda (st)
+      (let-values (((S added) (unify* S+ (subst-with-scope
+                                           (state-S st)
+                                           nonlocal-scope))))
+        (cond
+          ((not S) st)
+          ((null? added) #f)
+          (else
+            ; Attach the constraint to variables in of the disequality elements
+            ; (el).  We only need to choose one because all elements must fail to
+            ; cause the constraint to fail.
+            (let ((el (car added)))
+              (let ((st (add-to-D st (car el) added)))
+                (if (var? (cdr el))
+                  (add-to-D st (cdr el) added)
+                  st)))))))))
 
 ; Term, Term -> Goal
 (define (=/= u v)
@@ -457,23 +509,24 @@
 ; Generalized 'absento': 'term1' can be any legal term (old version
 ; of faster-miniKanren required 'term1' to be a ground atom).
 (define (absento term1 term2)
-  (lambda (st)
-    (let ((term1 (walk term1 (state-S st)))
-          (term2 (walk term2 (state-S st))))
-      (let ((st^ ((=/= term1 term2) st)))
-        (and st^
-             (cond
-               ((pair? term2)
-                (let ((st^^ ((absento term1 (car term2)) st^)))
-                  (and st^^ ((absento term1 (cdr term2)) st^^))))
-               ((var? term2)
-                (let* ((c (lookup-c st^ term2))
-                       (A (c-A c)))
-                  (if (memv term1 A)
-                    st^
-                    (let ((c^ (c-with-A c (cons term1 A))))
-                      (set-c st^ term2 c^)))))
-               (else st^)))))))
+  (lambda (ctx)
+    (lambda (st)
+      (let-values (((term1 TODO1) (walk term1 (state-S st)))
+                   ((term2 TODO2) (walk term2 (state-S st))))
+        (let ((st^ (((=/= term1 term2) ctx) st)))
+          (and st^
+               (cond
+                 ((pair? term2)
+                  (let ((st^^ (((absento term1 (car term2)) ctx) st^)))
+                    (and st^^ (((absento term1 (cdr term2)) ctx) st^^))))
+                 ((var? term2)
+                  (let* ((c (lookup-c st^ term2))
+                         (A (c-A c)))
+                    (if (memv term1 A)
+                      st^
+                      (let ((c^ (c-with-A c (cons term1 A))))
+                        (set-c st^ term2 c^)))))
+                 (else st^))))))))
 
 ; Fold lst with proc and initial value init. If proc ever returns #f,
 ; return with #f immediately. Used for applying a series of
@@ -485,29 +538,37 @@
       (and res (and-foldl proc res (cdr lst))))))
 
 (define (== u v)
-  (lambda (st)
-    (let-values (((S^ added) (unify u v (state-S st))))
-      (if S^
-        (and-foldl update-constraints (state S^ (state-C st)) added)
-        #f))))
+  (lambda (ctx)
+    (lambda (st)
+      (let-values
+          (((s added-or-prov)
+            (unify u v (state-S st) (prov-from-ctx ctx))))
+        (if s
+            (and-foldl (update-constraints ctx) (extend-assertion-history (state-with-S st s) ctx)
+                       added-or-prov)
+            (cdcl/conflict added-or-prov st))))))
 
 ; Not fully optimized. Could do absento update with fewer
 ; hash-refs / hash-sets.
-(define (update-constraints a st)
-  (let ((old-c (lookup-c st (lhs a))))
-    (if (eq? old-c empty-c)
-      st
-      (let ((st (remove-c (lhs a) st)))
-       (and-foldl (lambda (op st) (op st)) st
-        (append
-          (if (c-T old-c)
-            (list ((apply-type-constraint (c-T old-c)) (rhs a)))
-            '())
-          (map (lambda (atom) (absento atom (rhs a))) (c-A old-c))
-          (map =/=* (c-D old-c))))))))
+(define (update-constraints ctx)
+  (lambda (a st)
+    (let ((old-c (lookup-c st (lhs a))))
+      (if (eq? old-c empty-c)
+        st
+        (let ((st (remove-c (lhs a) st)))
+         (and-foldl (lambda (op st) ((op ctx) st)) st
+          (append
+            (if (c-T old-c)
+              (list ((apply-type-constraint (c-T old-c)) (rhs a)))
+              '())
+            (map (lambda (atom) (absento atom (rhs a))) (c-A old-c))
+            (map =/=* (c-D old-c)))))))))
+
+(define (walk/reifier v S)
+  (let-values (((res prov) (walk v S))) res))
 
 (define (walk* v S)
-  (let ((v (walk v S)))
+  (let ((v (walk/reifier v S)))
     (cond
       ((var? v) v)
       ((pair? v)
@@ -517,13 +578,13 @@
 (define-syntax project
   (syntax-rules ()
     ((_ (x ...) g g* ...)
-     (lambda (st)
-       (let ((x (walk* x (state-S st))) ...)
-         ((fresh () g g* ...) st))))))
+     (lambda (ctx)
+       (lambda (st)
+         (let ((x (walk* x (state-S st))) ...)
+           (((fresh () g g* ...) ctx) st)))))))
 
-(define succeed (== #f #f))
-(define fail (== #f #t))
-
+(define fail (lambda (ctx) (lambda (st) #f)))
+(define succeed (lambda (ctx) (lambda (st) st)))
 
 ; Reification
 
@@ -621,7 +682,8 @@
 ;  (absento (list x y z) x) is trivially true because a violation would
 ;  require x to occur within itself.
 (define (absento-rhs-occurs-lhs? a st)
-  (occurs-check (rhs a) (lhs a) (state-S st)))
+  (let-values (((r prov) (occurs-check (rhs a) (lhs a) (state-S st) empty-provenance)))
+    r))
 
 ; Drop disequalities that are subsumed by an absento contraint
 ; that is not itself equivalent to just a disequality.
@@ -694,12 +756,12 @@
                (and S+ (null? added))))
 
 (define (reify-S v S)
-  (let ((v (walk v S)))
+  (let ((v (walk/reifier v S)))
     (cond
       ((var? v)
        (let ((n (subst-length S)))
          (let ((name (reify-name n)))
-           (subst-add S v name))))
+           (subst-add S v name empty-provenance))))
       ((pair? v)
        (let ((S (reify-S (car v) S)))
          (reify-S (cdr v) S)))
