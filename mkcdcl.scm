@@ -4,7 +4,7 @@
   (make-parameter
     (lambda (cnt)
       (let ([v (check-every)])
-        (and v cnt (>= cnt v))))))
+        (and v (number? cnt) (>= cnt v))))))
 (define debug-soundness (make-parameter #f))
 
 (define assoc-term car)
@@ -23,17 +23,17 @@
 ;   #f is used for debug-soundness to record a soundness failure;
 ;     at that point no further CDCL checks are performed for that state.
 (define (inc-counter st)
-  (if (state-counter st)
+  (if (number? (state-counter st))
     (state-with-counter st (+ 1 (state-counter st)))
     st))
 
 (define (reset-counter st)
-  (if (state-counter st)
+  (if (number? (state-counter st))
     (state-with-counter st 0)
     st))
 
 (define (fail-counter st)
-  (state-with-counter st #f))
+  (state-with-counter st (state-assertion-history st)))
 
 ; Context: (cons/c AssumptionID
 ;                  (box/c
@@ -73,6 +73,7 @@
 ; Statistics counters
 (define unification-count 0)
 (define assumption-count 0)
+(define cutoff-counts (make-eq-hashtable))
 
 (define sat-count 0)
 (define unsat-count 0)
@@ -110,6 +111,9 @@
 
 (define check-sometimes
   (lambda (st)
+    (when (not (number? (state-counter st)))
+      (hashtable-set! cutoff-counts (state-counter st)
+                      (+ 1 (hashtable-ref cutoff-counts (state-counter st) 0))))
     (if ((should-check-p) (state-counter st))
         (begin
           (update-stats! #f)
@@ -122,7 +126,7 @@
 (define purge
   (lambda (ctx)
     (lambda (st)
-      (when (and (debug-soundness) (not (state-counter st)))
+      (when (and (debug-soundness) (not (number? (state-counter st))))
         (error 'purge "CDCL soundness bug" st))
       (update-stats! #t) st)))
 

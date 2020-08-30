@@ -51,13 +51,13 @@
         ((== y x) (== v t))
         ((=/= y x) (lookupo x rest t))))))
 
-(printf "10 quines\n")
-(time
-  (run 10 (q) (eval-expo q '() q)))
+;(printf "10 quines\n")
+;(time
+  ;(run 10 (q) (eval-expo q '() q)))
 
-(printf "40 quines\n")
-(time
-  (run 40 (q) (eval-expo q '() q)))
+;(printf "40 quines\n")
+;(time
+  ;(run 40 (q) (eval-expo q '() q)))
 
 (printf "2 twines\n")
 (time
@@ -67,17 +67,17 @@
 	       (eval-expo q '() p)
 	       (== `(,p ,q) x))))
 
-(printf "4 thrines\n")
-(time
-  (run 4 (x)
-       (fresh (p q r)
-              (=/= p q)
-              (=/= q r)
-              (=/= r p)
-              (eval-expo p '() q)
-              (eval-expo q '() r)
-              (eval-expo r '() p)
-              (== `(,p ,q ,r) x))))
+;(printf "4 thrines\n")
+;(time
+  ;(run 4 (x)
+       ;(fresh (p q r)
+              ;(=/= p q)
+              ;(=/= q r)
+              ;(=/= r p)
+              ;(eval-expo p '() q)
+              ;(eval-expo q '() r)
+              ;(eval-expo r '() p)
+              ;(== `(,p ,q ,r) x))))
 
 
 
