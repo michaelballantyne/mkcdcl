@@ -1,3 +1,5 @@
+; Corresponds to test 3a in interp-tests.scm
+
 (always-wrap-reified? #t)
 (check-every 1)
 

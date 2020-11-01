@@ -4,6 +4,7 @@
          ==
          symbolo
          numbero
+         stringo
          =/=
          absento
          fresh

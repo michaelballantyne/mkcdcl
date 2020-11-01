@@ -1,4 +1,5 @@
 (always-wrap-reified? #t)
+(check-every 1)
 
 ; If we have a conjunction of a nonterminating computation
 ; and an evalo call that would fail on its own, then we'd like

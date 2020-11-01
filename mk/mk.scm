@@ -115,6 +115,18 @@
 (define lhs car)
 (define rhs cdr)
 
+; Disequality constraint object
+;  ctx - the context of the original =/=
+;  orig - (Pair Term Term); the original LHS and RHS of the =/=, unsimplified.
+;  assocs - (ListOf Association); the simplified assocations
+
+(define (diseqc ctx orig assocs)
+  (list ctx orig assocs))
+
+(define (diseqc-ctx d) (car d))
+(define (diseqc-orig d) (cadr d))
+(define (diseqc-assocs d) (caddr d))
+
 ; Constraint record object.
 ;
 ; Describes the constraints attached to a single variable.
@@ -205,7 +217,10 @@
 ;                          (values #f Provenance)
 ; An extended substitution and a list of associations added during the unification,
 ;  or (values #f Provenance) indicating unification failed.
-
+;
+; Elements of the provenance set indicate constraints that contribute towards
+; unification /failure/.
+;
 ; Term, Term, Substitution -> UnificationResult
 (define (unify u v s new-prov)
   (let-values (((u u-prov) (walk u s))
@@ -231,6 +246,32 @@
                (values #f added-or-p-car))))
         ((equal? u v) (values s '()))
         (else (values #f p))))))
+
+
+; For use /only/ when unify reports success without substitution extension. Then,
+; provenance-for-equality computes the provenance of constraints justifying that
+; unification success.
+;
+; Term, Term, Substitution -> Provenance
+(define (provenance-for-equality u v s)
+  (let-values (((u u-prov) (walk u s))
+               ((v v-prov) (walk v s)))
+    (let ((p (provenance-union u-prov v-prov)))
+      (cond
+        ((eq? u v) p)
+        ((and (pair? u) (pair? v))
+         (provenance-union
+           p
+           (provenance-union
+             (provenance-for-equality (car u) (car v) s)
+             (provenance-for-equality (cdr u) (cdr v) s))))
+        ((equal? u v) p)))))
+
+(define (provenance-for-equality* assocs s)
+  (provenance-for-equality
+    (map lhs assocs)
+    (map rhs assocs)
+    s))
 
 ; Term, Substitution -> Term, ProvenanceSet
 (define (walk u S)
@@ -510,34 +551,42 @@
   (stringo string? str string-compare)
   (symbolo symbol? sym symbol-compare))
 
+(define (=/= u v)
+  (lambda (ctx)
+    (lambda (st)
+      ((update-diseq (diseqc ctx (cons u v) (list (cons u v))))
+       st))))
+
+; diseqc -> (or State #f)
+(define (update-diseq diseq)
+  (lambda (st)
+    (let-values (((S added) (unify* (diseqc-assocs diseq)
+                                    (subst-with-scope
+                                      (state-S st)
+                                      nonlocal-scope))))
+      (cond
+        ((not S) st)
+        ((null? added)
+         (cdcl/conflict
+           (provenance-union
+             (prov-from-ctx (diseqc-ctx diseq))
+             (provenance-for-equality* (diseqc-assocs diseq) (state-S st)))
+           st))
+        (else
+          ; Attach the constraint to variables in of the disequality elements
+          ; (el).  We only need to choose one because all elements must fail to
+          ; cause the constraint to fail.
+          (let ((new-diseq (diseqc (diseqc-ctx diseq) (diseqc-orig diseq) added)))
+            (let ((el (car added)))
+              (let ((st (add-to-D st (lhs el) new-diseq)))
+                (if (var? (rhs el))
+                  (add-to-D st (rhs el) new-diseq)
+                  st)))))))))
+
 (define (add-to-D st v d)
   (let* ((c (lookup-c st v))
          (c^ (c-with-D c (cons d (c-D c)))))
     (set-c st v c^)))
-
-; (ListOf Association) -> Goal
-(define (=/=* S+)
-  (lambda (ctx)
-    (lambda (st)
-      (let-values (((S added) (unify* S+ (subst-with-scope
-                                           (state-S st)
-                                           nonlocal-scope))))
-        (cond
-          ((not S) st)
-          ((null? added) #f)
-          (else
-            ; Attach the constraint to variables in of the disequality elements
-            ; (el).  We only need to choose one because all elements must fail to
-            ; cause the constraint to fail.
-            (let ((el (car added)))
-              (let ((st (add-to-D st (car el) added)))
-                (if (var? (cdr el))
-                  (add-to-D st (cdr el) added)
-                  st)))))))))
-
-; Term, Term -> Goal
-(define (=/= u v)
-  (=/=* (list (cons u v))))
 
 ; Term, Term -> Goal
 ; Generalized 'absento': 'term1' can be any legal term (old version
@@ -603,7 +652,7 @@
                           (assoc-prov (c-T old-c))))))
               '())
             (map (lambda (atom) (absento atom (rhs a))) (c-A old-c))
-            (map =/=* (c-D old-c)))))))))
+            (map (lambda (diseq) (lambda (ctx) (update-diseq diseq))) (c-D old-c)))))))))
 
 (define (walk/reifier v S)
   (let-values (((res prov) (walk v S))) res))
@@ -667,7 +716,7 @@
                  type-constraints))
   (define D (append*
               (map (lambda (x)
-                     (filter-map (normalize-diseq (state-S st)) (c-D (lookup-c st x))))
+                     (filter-map (normalize-diseq (state-S st)) (map diseqc-assocs (c-D (lookup-c st x)))))
                    relevant-vars)))
   (define A (append*
               (map (lambda (x)
