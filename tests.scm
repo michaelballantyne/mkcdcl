@@ -53,15 +53,6 @@
     ((a b c) (d))
     ((a b c d) ())))
 
-#;
-(test "closure-absento-1"
-  (run* (q) (closure-absento q) (== q 1))
-  '(1))
-
-#;
-(test "closure-absento-2"
-  (run* (q) (closure-absento q) (== q (make-closure 'x 'x '())))
-  '())
 
 (define (anyo out)
   (conde
@@ -125,14 +116,6 @@
         ((== x (+ n 10)))
         ((manyn1o x (- n 1))))))
 
-#;
-(test "cdcl-5"
-  (run 1 (q)
-    (fresh (x)
-      (many1o x 10000)
-      (manyn1o x 10000)))
-  '())
-
 (test "cdcl-6"
   (run 1 (q)
     (fresh (x y z)
@@ -151,15 +134,64 @@
       (many1o y 1000)))
   '())
 
-; Ah! It's okay because when a unification fails due to conflict with a symbolo
-;   constraint, we don't record a nogood set.
-(test "cdcl-soundness-symbolo"
-  (parameterize (#;[debug-soundness #t]
-                 [check-every 1])
+(parameterize ([debug-soundness #t]
+               [check-every 1])
+  
+  (test "cdcl-soundness-symbolo"
     (run* (q)
         (conde
           [(symbolo q)]
           [(numbero q)])
         (== q 1)
-        ))
-  '(1))
+        )
+    '(1))
+  
+  ; absento needs to track unifications it walks through
+  ; when applying the constraint to ensure sound provenance.
+  (test "absento-soundness-1"
+    (run 1 (q)
+      (fresh (x y z)
+        (conde
+          [(== x y)]
+          [(== 'success 'success)])
+        ; Note: this test works under the assumption that there is no
+        ; suspension between the first unification and the final unification.
+        ; Putting either of these constraints in a `fresh` will make the test
+        ; ineffectual.
+        (absento z x)
+        (== y `(cat . ,z))))
+    '(_.0))
+
+  (test "absento-soundness-2"
+    (run 1 (q)
+      (fresh (y z)
+        (conde
+          [(== z 5)]
+          [(== 'success 'success)])
+        ; Note: this test works under the assumption that there is no
+        ; suspension between the first unification and the final unification.
+        ; Putting either of these constraints in a `fresh` will make the test
+        ; ineffectual.
+        (absento z y)
+        (== y `(cat . 5))))
+    '(_.0))
+  
+  ; When absento attributes a variable, it needs to include
+  ; in the attributed information the provenance of the absento
+  ; itself, and any unifications it walked through before
+  ; attributing.
+  (test "absento-soundness-3"
+    (run 1 (q)
+      (fresh (x)
+        (conde
+          [(absento 5 x)]
+          [(== 'success 'success)])
+        ; Note: this test works under the assumption that there is no
+        ; suspension between the first absento and the final unification.
+        ; Putting this constraint in a `fresh` will make the test
+        ; ineffectual.
+        (== x `(cat . 5))))
+    '(_.0))
+)
+
+
