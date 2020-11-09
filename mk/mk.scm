@@ -191,7 +191,7 @@
 (define (state-C st) (caddr st))
 (define (state-assertion-history st) (cadddr st))
 
-(define empty-state (state 0 empty-subst empty-C empty-assertion-history))
+(define empty-state (state 1 empty-subst empty-C empty-assertion-history))
 
 (define (state-with-counter st c)
   (cons c (cdr st)))

@@ -29,7 +29,7 @@
 
 (define (reset-counter st)
   (if (number? (state-counter st))
-    (state-with-counter st 0)
+    (state-with-counter st 1)
     st))
 
 (define (fail-counter st)
@@ -127,7 +127,7 @@
   (lambda (ctx)
     (lambda (st)
       (when (and (debug-soundness) (not (number? (state-counter st))))
-        (error 'purge "CDCL soundness bug" st))
+        (error 'purge "CDCL soundness bug ~s" st))
       (update-stats! #t) st)))
 
 (define (hard-reset!)
