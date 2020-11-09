@@ -120,12 +120,22 @@
 ;  orig - (Pair Term Term); the original LHS and RHS of the =/=, unsimplified.
 ;  assocs - (ListOf Association); the simplified assocations
 
-(define (diseqc ctx orig assocs)
-  (list ctx orig assocs))
+(define (diseqc prov orig assocs)
+  (list prov orig assocs))
 
-(define (diseqc-ctx d) (car d))
+(define (diseqc-prov d) (car d))
 (define (diseqc-orig d) (cadr d))
 (define (diseqc-assocs d) (caddr d))
+
+(define (absentoc lhs rhs prov)
+  (list lhs rhs prov))
+
+(define (absentoc-lhs a)
+  (car a))
+(define (absentoc-rhs a)
+  (cadr a))
+(define (absentoc-prov a)
+  (caddr a))
 
 ; Constraint record object.
 ;
@@ -554,7 +564,7 @@
 (define (=/= u v)
   (lambda (ctx)
     (lambda (st)
-      ((update-diseq (diseqc ctx (cons u v) (list (cons u v))))
+      ((update-diseq (diseqc (prov-from-ctx ctx) (cons u v) (list (cons u v))))
        st))))
 
 ; diseqc -> (or State #f)
@@ -569,14 +579,14 @@
         ((null? added)
          (cdcl/conflict
            (provenance-union
-             (prov-from-ctx (diseqc-ctx diseq))
+             (diseqc-prov diseq)
              (provenance-for-equality* (diseqc-assocs diseq) (state-S st)))
            st))
         (else
           ; Attach the constraint to variables in of the disequality elements
           ; (el).  We only need to choose one because all elements must fail to
           ; cause the constraint to fail.
-          (let ((new-diseq (diseqc (diseqc-ctx diseq) (diseqc-orig diseq) added)))
+          (let ((new-diseq (diseqc (diseqc-prov diseq) (diseqc-orig diseq) added)))
             (let ((el (car added)))
               (let ((st (add-to-D st (lhs el) new-diseq)))
                 (if (var? (rhs el))
@@ -588,28 +598,35 @@
          (c^ (c-with-D c (cons d (c-D c)))))
     (set-c st v c^)))
 
+(define (push-absento term1 term2 st p)
+  (let-values (((term1 p1) (walk term1 (state-S st)))
+               ((term2 p2) (walk term2 (state-S st))))
+    (let ([p^ (provenance-union p (provenance-union p1 p2))])
+      (let ((st^ ((update-diseq (diseqc p^ (cons term1 term2) (list (cons term1 term2)))) st)))
+        (and st^
+             (cond
+               ((pair? term2)
+                (let ((st^^ (push-absento term1 (car term2) st^ p^)))
+                  (and st^^ (push-absento term1 (cdr term2) st^^ p^))))
+               ((var? term2)
+                (let* ((c (lookup-c st^ term2))
+                       (A (c-A c)))
+                  ; This memv line is an optimization to avoid attaching duplicate constraints.
+                  ; The optimization currently only triggers when term1 is an eqv-comparable
+                  ; value.
+                  (if (memv term1 (map absentoc-lhs A))
+                    st^
+                    (let ((c^ (c-with-A c (cons (absentoc term1 term2 p^) A))))
+                      (set-c st^ term2 c^)))))
+               (else st^)))))))
+
 ; Term, Term -> Goal
 ; Generalized 'absento': 'term1' can be any legal term (old version
 ; of faster-miniKanren required 'term1' to be a ground atom).
 (define (absento term1 term2)
   (lambda (ctx)
     (lambda (st)
-      (let-values (((term1 TODO1) (walk term1 (state-S st)))
-                   ((term2 TODO2) (walk term2 (state-S st))))
-        (let ((st^ (((=/= term1 term2) ctx) st)))
-          (and st^
-               (cond
-                 ((pair? term2)
-                  (let ((st^^ (((absento term1 (car term2)) ctx) st^)))
-                    (and st^^ (((absento term1 (cdr term2)) ctx) st^^))))
-                 ((var? term2)
-                  (let* ((c (lookup-c st^ term2))
-                         (A (c-A c)))
-                    (if (memv term1 A)
-                      st^
-                      (let ((c^ (c-with-A c (cons term1 A))))
-                        (set-c st^ term2 c^)))))
-                 (else st^))))))))
+      (push-absento term1 term2 st (prov-from-ctx ctx)))))
 
 ; Fold lst with proc and initial value init. If proc ever returns #f,
 ; return with #f immediately. Used for applying a series of
@@ -651,7 +668,15 @@
                           st
                           (assoc-prov (c-T old-c))))))
               '())
-            (map (lambda (atom) (absento atom (rhs a))) (c-A old-c))
+            (map (lambda (absento-c)
+                   (lambda (ctx)
+                     (lambda (st)
+                       (push-absento (absentoc-lhs absento-c)
+                                     (absentoc-rhs absento-c)
+                                     st
+                                     (absentoc-prov absento-c))
+                       )))
+                 (c-A old-c))
             (map (lambda (diseq) (lambda (ctx) (update-diseq diseq))) (c-D old-c)))))))))
 
 (define (walk/reifier v S)
@@ -720,8 +745,8 @@
                    relevant-vars)))
   (define A (append*
               (map (lambda (x)
-                     (map (lambda (a-lhs)
-                            (cons (walk* a-lhs (state-S st))
+                     (map (lambda (absento-c)
+                            (cons (walk* (absentoc-lhs absento-c) (state-S st))
                                   x))
                           (c-A (lookup-c st x))))
                    relevant-vars)))
@@ -924,7 +949,7 @@
   (let loop ((l type-constraints)
              (i 0))
     (if (null? l)
-      (error 'type-index "no matching type constraint" v)
+      (error 'type-index "no matching type constraint ~s" v)
       (let ((tc (car l)))
         (if ((type-constraint-predicate tc) v)
           i
