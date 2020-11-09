@@ -85,3 +85,18 @@
     (fresh (e1 e2)
       (evalo `(cons ,e1 ,e2) 6)))
   '())
+
+(time-test "6"
+  (run 1 (q)
+    (evalo q 5)
+    (fresh (e1 e2)
+      (evalo `(quote 'closure) 'closure)))
+  '())
+
+(time-test "6"
+  (run 1 (q)
+    (evalo q 5)
+    (fresh (x e1 e2)
+      (evalo `(quote 'closure) x)
+      (== x '(closure 5))))
+  '())
