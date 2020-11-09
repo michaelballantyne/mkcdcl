@@ -13,6 +13,8 @@
          succeed
          fail
 
+         project
+
          use-set-var-val!-optimization
          log-stats
          check-every
