@@ -1,5 +1,6 @@
-;(check-every #f) ; 220 seconds
-(check-every 8) ; 40 seconds
+(check-every #f) ; 220 seconds, 15411320
+;(check-every 8) ; 40 seconds, 131326 unifications
+(log-stats #t)
 
 ; So CDCL does something, in some cases! That's good. Maybe if we can
 ; make the overhead low enough, it'll be useful.
