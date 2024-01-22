@@ -13,11 +13,16 @@ as function definitions, `run`, `run*`, `==`,
 ## Building minisat
 
 ```
+make submods
+```
+
+to checkout the submodules for `minisat` and `minisat-c-bindings`;
+
+```
 make
 ```
 
-will check out the submodules for `minisat` and `minisat-c-bindings`,
-build the libraries, and install them in `minisat/build/install` and
+to build the libraries, and install them in `minisat/build/install` and
 `minisat-c-bindings/install`.
 
 ## Running
