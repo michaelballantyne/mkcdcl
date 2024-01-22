@@ -24,3 +24,5 @@
 
 (define minisat_conflict_len (foreign-procedure "minisat_conflict_len" (uptr) int))
 (define minisat_conflict_nthLit (foreign-procedure "minisat_conflict_nthLit" (uptr int) int))
+
+(define minisat_eliminate (foreign-procedure "minisat_eliminate" (uptr boolean) boolean))

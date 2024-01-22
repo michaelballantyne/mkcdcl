@@ -15,7 +15,9 @@
     (error proc "not a lit" v)))
 
 (define (sat/new)
-  (make-minisat-solver (minisat_new)))
+  (define ptr (minisat_new))
+  (minisat_eliminate ptr #t)
+  (make-minisat-solver ptr))
 
 ;; TODO: can we integrate with garbage collection so that we don't
 ;;   have to manually delete?
