@@ -27,16 +27,6 @@ to build the libraries, and install them in `minisat/build/install` and
 
 ## Running
 
-## Chez Scheme
-
-`mk-chez.scm` is an R6RS library. Load it with:
-
-```
-(import (mk-chez))
-```
-
-It should be in the search path when you run Chez in the directory with the
-file; otherwise you'll have to set the path with Chez's `--libdirs` flag.
 
 ## Racket
 
@@ -45,6 +35,9 @@ file; otherwise you'll have to set the path with Chez's `--libdirs` flag.
 (require "mk.rkt")
 ```
 
+## Chez Scheme
+
+See the `load` statements in `test-all.scm`.
 
 ## Options
 
